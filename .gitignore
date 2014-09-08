@@ -15,3 +15,8 @@ hs_err_pid*
 *.classpath
 *.project
 *.settings
+
+.idea
+assign1/assign1_data/
+assign1/._assign1_data
+assign1/build_assign1/
