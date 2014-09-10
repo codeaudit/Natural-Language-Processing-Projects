@@ -1,6 +1,7 @@
 package edu.berkeley.nlp.assignments.assign1.student;
 
 import java.lang.Integer;
+import java.lang.Long;
 import java.lang.String;
 import java.lang.StringBuffer;
 import java.util.HashMap;
@@ -60,7 +61,8 @@ class LanguageModel implements NgramLanguageModel {
     static final String STOP = NgramLanguageModel.STOP;
     static final String START = NgramLanguageModel.START;
 
-    static final double LOG_ZERO = Math.log(0.000000000000000001);
+    static final double ZERO = 0.000001;
+    static final double LOG_ZERO = Math.log(ZERO);
 
     public int getOrder() {
         return 3;
@@ -77,6 +79,8 @@ class LanguageModel implements NgramLanguageModel {
     HashMap<Long, Integer> bigramPostFertility = new HashMap<Long, Integer>();
     // This one is \Sum_w(N1+(*, key, w))
     HashMap<Integer, Integer> sumFertility = new HashMap<Integer, Integer>();
+    // This one is \Sum_w(count(bigram, w))
+    HashMap<Long, Integer> sumCounts = new HashMap<Long, Integer>();
 
     public LanguageModel(Iterable<List<String>> sentenceCollection) {
         System.out.println("Building LanguageModel...");
@@ -84,11 +88,12 @@ class LanguageModel implements NgramLanguageModel {
         StringIndexer indexer = EnglishWordIndexer.getIndexer();
         for (List<String> sentence : sentenceCollection) {
             sent++;
-            if (sent % 1000000 == 0) System.out.println("On sentence " + sent);
+            if (sent % 250000 == 0) System.out.println("On sentence " + sent);
             List<String> stoppedSentence = new ArrayList<String>(sentence);
             stoppedSentence.add(0, START);
             stoppedSentence.add(STOP);
             int curr = 0, prev = 0, prev2;
+            Integer value;
             for (int i = 0; i < stoppedSentence.size(); i++) {
                 String word = stoppedSentence.get(i);
                 prev2 = prev;
@@ -100,9 +105,11 @@ class LanguageModel implements NgramLanguageModel {
                     key += prev2;
                     key <<= 21;
                     key += prev;
+                    value = sumCounts.get(new Long(key));
+                    sumCounts.put(new Long(key), value == null ? new Integer(1) : new Integer(value + 1));
                     key <<= 21;
                     key += curr;
-                    Integer value = trigrams.get(new Long(key));
+                    value = trigrams.get(new Long(key));
                     if (value == null) {
                         value = 1;
                         long key2 = 0;
@@ -110,44 +117,44 @@ class LanguageModel implements NgramLanguageModel {
                         key2 <<= 21;
                         key2 += curr;
                         Integer fertility = bigramFertility.get(new Long(key2));
-                        bigramFertility.put(key2, fertility == null ? 1 : fertility + 1);
+                        bigramFertility.put(new Long(key2), fertility == null ? new Integer(1) : new Integer(fertility + 1));
 
                         fertility = sumFertility.get(new Integer(prev));
-                        sumFertility.put(prev, fertility == null ? 1 : fertility + 1);
+                        sumFertility.put(new Integer(prev), fertility == null ? new Integer(1) : new Integer(fertility + 1));
 
                         key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
                         fertility = bigramPostFertility.get(new Long(key2));
-                        bigramPostFertility.put(key2, fertility == null ? 1 : fertility + 1);
+                        bigramPostFertility.put(new Long(key2), fertility == null ? new Integer(1) : new Integer(fertility + 1));
                     } else {
                         value += 1;
                     }
-                    trigrams.put(key, value);
+                    trigrams.put(new Long(key), new Integer(value));
                 }
                 if (i >= 1) {
                     long key = 0;
                     key += prev;
                     key <<= 21;
                     key += curr;
-                    Integer value = bigrams.get(new Long(key));
+                    value = bigrams.get(new Long(key));
                     if (value == null) {
                         value = 1;
                         Integer fertility = unigramFertility.get(new Integer(curr));
-                        unigramFertility.put(curr, fertility == null ? 1 : fertility + 1);
+                        unigramFertility.put(new Integer(curr), fertility == null ? new Integer(1) : new Integer(fertility + 1));
                         fertility = unigramPostFertility.get(new Integer(prev));
-                        unigramPostFertility.put(prev, fertility == null ? 1 : fertility + 1);
+                        unigramPostFertility.put(new Integer(prev), fertility == null ? new Integer(1) : new Integer(fertility + 1));
                     } else {
                         value += 1;
                     }
-                    bigrams.put(key, value);
+                    bigrams.put(new Long(key), new Integer(value));
                 }
-                Integer value = unigrams.get(new Integer(curr));
-                unigrams.put(curr, value == null ? 1 : value + 1);
+                value = unigrams.get(new Integer(curr));
+                unigrams.put(new Integer(curr), value == null ? new Integer(1) : new Integer(value + 1));
             }
         }
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
-        double D = 0.75;
+        double D = 0.5;
         int order = to - from;
         int word3 = ngram[to-1];
         Integer fertility = unigramFertility.get(new Integer(word3));
@@ -155,11 +162,12 @@ class LanguageModel implements NgramLanguageModel {
         pUnigram /= (double)(bigrams.size());
 
         if (order == 1) {
-            if (pUnigram == 0) return LOG_ZERO;
+            if (pUnigram == 0) throw new Error(logProbDump(Double.NEGATIVE_INFINITY, Arrays.copyOfRange(ngram, from, to)));
             double ret = Math.log(pUnigram);
             assert !(Double.isNaN(ret) || Double.isInfinite(ret)) && ret <= 0 : ret;
             return ret;
         }
+
 
         int word2 = ngram[to-2];
         long key = 0; key += word2; key <<= 21; key += word3;
@@ -174,25 +182,32 @@ class LanguageModel implements NgramLanguageModel {
             pBigram /= fertility.doubleValue();
         }
 
+        if (pBigram == 0) pBigram = ZERO;
         if (order == 2) {
-            if (pBigram == 0) return LOG_ZERO;
+//            if (pBigram == 0) throw new Error(
+//                    logProbDump(Double.NEGATIVE_INFINITY, Arrays.copyOfRange(ngram, from, to))
+//            );
             double ret = Math.log(pBigram);
             assert !(Double.isNaN(ret) || Double.isInfinite(ret)) && ret <= 0 : ret;
             return ret;
         }
 
+
         int word1 = ngram[to-3];
         key = 0; key += word1; key <<= 21; key += word2; key <<= 21; key += word3;
         Integer count = trigrams.get(new Long(key));
         double pTrigram = count == null ? 0 : (double)(count) - D;
+
         key = 0; key += word1; key <<= 21; key += word2;
         fertility = bigramPostFertility.get(new Long(key));
         pTrigram += fertility == null ? 0 : D * fertility.doubleValue() * pBigram;
-        fertility = bigrams.get(new Long(key));
-        if (fertility == null) {
-            assert(pTrigram == 0);
+
+        Integer denominator = sumCounts.get(new Long(key));
+        if (denominator == null) {
+            // TODO: Backoff to actual bigram and not fertility bigram
+            return Math.log(pBigram);
         } else {
-            pTrigram /= fertility.doubleValue();
+            pTrigram /= denominator.doubleValue();
         }
 
         if (pTrigram == 0) return LOG_ZERO;
@@ -210,13 +225,19 @@ class LanguageModel implements NgramLanguageModel {
         out.append(Arrays.toString(ngram));
 
         ArrayList<String> words = new ArrayList<String>();
+        ArrayList<Integer> wordCounts = new ArrayList<Integer>();
         StringIndexer indexer = EnglishWordIndexer.getIndexer();
+        String word;
         for (int i = 0; i < ngram.length; i++) {
-            words.add(indexer.get(ngram[i]));
+            word = indexer.get(ngram[i]);
+            words.add(word);
+            wordCounts.add(unigrams.get(new Integer(ngram[i])));
         }
-        out.append(" (");
+        out.append(" ");
         out.append(words.toString());
-        out.append(")\n");
+        out.append(" with counts ");
+        out.append(wordCounts.toString());
+        out.append("\n");
         return out.toString();
     }
 
