@@ -59,22 +59,25 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     int[] unigrams = new int[500000];
-    Arrays.fill(unigrams, 0);
     LongIntOpenHashMap trigrams = new LongIntOpenHashMap();
     LongIntOpenHashMap bigrams = new LongIntOpenHashMap();
     // Fertility refers to N1+(*, ngram)
-    HashMap<Integer, Integer> unigramFertility = new HashMap<Integer, Integer>();
+    int[] unigramFertility = new int[500000];
     LongIntOpenHashMap bigramFertility = new LongIntOpenHashMap();
     // This one is N1+(ngram, *)
-    HashMap<Integer, Integer> unigramPostFertility = new HashMap<Integer, Integer>();
+    int[] unigramPostFertility = new int[500000];
     LongIntOpenHashMap bigramPostFertility = new LongIntOpenHashMap();
     // This one is \Sum_w(N1+(*, key, w))
-    HashMap<Integer, Integer> sumFertility = new HashMap<Integer, Integer>();
+    int[] sumFertility = new int[500000];
 
     public LanguageModel(Iterable<List<String>> sentenceCollection) {
-        System.out.println("Building LanguageModel...");
         int sent = 0;
         StringIndexer indexer = EnglishWordIndexer.getIndexer();
+        Arrays.fill(unigrams, 0);
+        Arrays.fill(unigramFertility, 0);
+        Arrays.fill(unigramPostFertility, 0);
+        Arrays.fill(sumFertility, 0);
+        System.out.println("Building LanguageModel...");
         for (List<String> sentence : sentenceCollection) {
             sent++;
             if (sent % 250000 == 0) System.out.println("On sentence " + sent);
@@ -105,8 +108,8 @@ class LanguageModel implements NgramLanguageModel {
                         key2 += curr;
                         bigramFertility.putOrAdd(key2, 1, 1);
 
-                        fertility = sumFertility.get(new Integer(prev));
-                        sumFertility.put(new Integer(prev), fertility == null ? new Integer(1) : new Integer(fertility + 1));
+                        expandArray(sumFertility, prev);
+                        sumFertility[prev] += 1;
 
                         key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
                         bigramPostFertility.putOrAdd(key2, 1, 1);
@@ -119,24 +122,28 @@ class LanguageModel implements NgramLanguageModel {
                     key <<= 21;
                     key += curr;
                     if (!bigrams.containsKey(key)) {
-                        fertility = unigramFertility.get(new Integer(curr));
-                        unigramFertility.put(new Integer(curr), fertility == null ? new Integer(1) : new Integer(fertility + 1));
-                        fertility = unigramPostFertility.get(new Integer(prev));
-                        unigramPostFertility.put(new Integer(prev), fertility == null ? new Integer(1) : new Integer(fertility + 1));
+                        expandArray(unigramFertility, curr);
+                        unigramFertility[curr] += 1;
+                        expandArray(unigramPostFertility, prev);
+                        unigramPostFertility[prev] += 1;
                     }
                     bigrams.putOrAdd(key, 1, 1);
                 }
+                expandArray(unigrams, curr);
                 unigrams[curr] += 1;
             }
         }
+    }
+
+    void expandArray(int[] array, int index) {
+
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
         double D = 0.5;
         int order = to - from;
         int word3 = ngram[to-1];
-        Integer fertility = unigramFertility.get(new Integer(word3));
-        double pUnigram = fertility == null ? 0 : fertility.doubleValue();
+        double pUnigram = (double)unigramFertility[word3];
         pUnigram /= (double)(bigrams.size());
 
         if (order == 1) {
@@ -151,13 +158,12 @@ class LanguageModel implements NgramLanguageModel {
         long key = 0; key += word2; key <<= 21; key += word3;
         int fert = bigramFertility.get(key);
         double pBigram = fert == 0 ? 0 : fert - D;
-        fertility = unigramPostFertility.get(new Integer(word2));
-        pBigram += fertility == null ? 0 : D * fertility.doubleValue() * pUnigram;
-        fertility = sumFertility.get(new Integer(word2));
-        if (fertility == null) {
+        pBigram += D * unigramPostFertility[word2] * pUnigram;
+        int fertility = sumFertility[word2];
+        if (fertility == 0) {
             assert pBigram == 0 : pBigram;
         } else {
-            pBigram /= fertility.doubleValue();
+            pBigram /= (double)fertility;
         }
 
         if (pBigram == 0) pBigram = ZERO;
@@ -239,13 +245,16 @@ class LanguageModel implements NgramLanguageModel {
             val = bigrams.get(key);
         }
         if (ngram.length == 1) {
-            Integer v = unigrams[ngram[0]]);
+            Integer v = unigrams[ngram[0]];
             val = v == null ? 0 : v.intValue();
         }
         return val == 0 ? 0 : val;
     }
 }
 
+
+// THE FOLLOWING CLASS WAS COPIED FROM CARROT SEARCH LABS HPPC PACKAGE
+// AND MODIFIED FROM ITS ORIGINAL FORM FOR THIS APPLICATION.
 class LongIntOpenHashMap {
     /**
      * Default capacity.
