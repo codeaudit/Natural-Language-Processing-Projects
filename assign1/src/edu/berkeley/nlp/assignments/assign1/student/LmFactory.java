@@ -80,7 +80,7 @@ class LanguageModel implements NgramLanguageModel {
         System.out.println("Building LanguageModel...");
         for (List<String> sentence : sentenceCollection) {
             sent++;
-            if (sent % 250000 == 0) System.out.println("On sentence " + sent);
+            if (sent % 1000000 == 0) System.out.println("On sentence " + sent);
             List<String> stoppedSentence = new ArrayList<String>(sentence);
             stoppedSentence.add(0, START);
             stoppedSentence.add(STOP);
@@ -108,7 +108,7 @@ class LanguageModel implements NgramLanguageModel {
                         key2 += curr;
                         bigramFertility.putOrAdd(key2, 1, 1);
 
-                        expandArray(sumFertility, prev);
+                        // expandArray(sumFertility, prev);
                         sumFertility[prev] += 1;
 
                         key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
@@ -122,17 +122,30 @@ class LanguageModel implements NgramLanguageModel {
                     key <<= 21;
                     key += curr;
                     if (!bigrams.containsKey(key)) {
-                        expandArray(unigramFertility, curr);
+                        // expandArray(unigramFertility, curr);
                         unigramFertility[curr] += 1;
-                        expandArray(unigramPostFertility, prev);
+                        // expandArray(unigramPostFertility, prev);
                         unigramPostFertility[prev] += 1;
                     }
                     bigrams.putOrAdd(key, 1, 1);
                 }
-                expandArray(unigrams, curr);
+                // expandArray(unigrams, curr);
                 unigrams[curr] += 1;
             }
         }
+        System.out.println(max(unigrams));
+        System.out.println(max(unigramFertility));
+        System.out.println(max(unigramPostFertility));
+        System.out.println(max(sumFertility));
+    }
+
+    static int max(int[] values) {
+        int max = Integer.MIN_VALUE;
+        for(int value : values) {
+            if(value > max)
+                max = value;
+        }
+        return max;
     }
 
     void expandArray(int[] array, int index) {
@@ -140,7 +153,7 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
-        double D = 0.5;
+        final double D = 0.5;
         int order = to - from;
         int word3 = ngram[to-1];
         double pUnigram = (double)unigramFertility[word3];
