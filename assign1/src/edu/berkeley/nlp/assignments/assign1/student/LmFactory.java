@@ -132,6 +132,8 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
+        System.out.println(bigrams.allocated.length);
+        System.out.println(trigrams.allocated.length);
     }
 
     static int max(int[] values) {
