@@ -113,7 +113,7 @@ class LanguageModel implements NgramLanguageModel {
                         key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
                         bigrams.incrementPostFertility(key2);
                     }
-                    trigrams.putOrAdd(key, 1, 1);
+                    trigrams.increment(key);
                 }
                 if (i >= 1) {
                     long key = 0;
@@ -132,8 +132,6 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
-        System.out.println(bigrams.allocated.length);
-        System.out.println(trigrams.allocated.length);
     }
 
     static int max(int[] values) {
@@ -277,11 +275,6 @@ class LongIntOpenHashMap {
     public final static int MIN_CAPACITY = 4;
 
     /**
-     * Default load factor.
-     */
-    public final static float DEFAULT_LOAD_FACTOR = 0.75f;
-
-    /**
      * Hash-indexed array holding all keys.
      *
      * @see #values
@@ -313,7 +306,7 @@ class LongIntOpenHashMap {
      * The load factor for this map (fraction of allocated slots
      * before the buffers must be rehashed or reallocated).
      */
-    public final float loadFactor;
+    public final float loadFactor = 0.75f;
 
     /**
      * Cached capacity threshold at which we must resize the buffers.
@@ -340,41 +333,13 @@ class LongIntOpenHashMap {
         this(DEFAULT_CAPACITY);
     }
 
-    /**
-     * Creates a hash map with the given initial capacity, default load factor of
-     * {@value #DEFAULT_LOAD_FACTOR}.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     *
-     * @param initialCapacity Initial capacity (greater than zero and automatically
-     *            rounded to the next power of two).
-     */
     public LongIntOpenHashMap(int initialCapacity)
-    {
-        this(initialCapacity, DEFAULT_LOAD_FACTOR);
-    }
-
-    /**
-     * Creates a hash map with the given initial capacity,
-     * load factor.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     *
-     * @param initialCapacity Initial capacity (greater than zero and automatically
-     *            rounded to the next power of two).
-     *
-     * @param loadFactor The load factor (greater than zero and smaller than 1).
-     */
-    public LongIntOpenHashMap(int initialCapacity, float loadFactor)
     {
         initialCapacity = Math.max(initialCapacity, MIN_CAPACITY);
 
         assert initialCapacity == DEFAULT_CAPACITY
                 : "Initial capacity not supported";
-        assert loadFactor > 0 && loadFactor <= 1
-                : "Load factor must be between (0, 1].";
 
-        this.loadFactor = loadFactor;
         allocateBuffers(roundCapacity(initialCapacity));
     }
 
@@ -404,22 +369,7 @@ class LongIntOpenHashMap {
         return ((int) 0);
     }
 
-    /**
-     * <a href="http://trove4j.sourceforge.net">Trove</a>-inspired API method. An equivalent
-     * of the following code:
-     * <pre>
-     * if (map.containsKey(key))
-     *    map.lset(map.lget() + additionValue);
-     * else
-     *    map.put(key, putValue);
-     * </pre>
-     *
-     * @param key The key of the value to adjust.
-     * @param putValue The value to put if <code>key</code> does not exist.
-     * @param additionValue The value to add to the existing value if <code>key</code> exists.
-     * @return Returns the current value associated with <code>key</code> (after changes).
-     */
-    public final int putOrAdd(long key, int putValue, int additionValue)
+    public final void increment(long key)
     {
         if (assigned >= resizeThreshold)
             expandAndRehash();
@@ -430,7 +380,8 @@ class LongIntOpenHashMap {
         {
             if (((key) == (keys[slot])))
             {
-                return values[slot] += additionValue;
+                values[slot] += 1;
+                return;
             }
             slot = (slot + 1) & mask;
         }
@@ -438,9 +389,8 @@ class LongIntOpenHashMap {
         assigned++;
         allocated[slot] = true;
         keys[slot] = key;
-        int v = values[slot] = putValue;
-
-        return v;
+        values[slot] = 1;
+        return;
     }
 
 
@@ -507,70 +457,6 @@ class LongIntOpenHashMap {
         this.allocated = new boolean [capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
-    }
-
-    public int remove(long key)
-    {
-        final int mask = allocated.length - 1;
-        int slot = rehash(key) & mask;
-
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
-                assigned--;
-                int v = values[slot];
-                shiftConflictingKeys(slot);
-                return v;
-            }
-            slot = (slot + 1) & mask;
-        }
-
-        return ((int) 0);
-    }
-
-    /**
-     * Shift all the slot-conflicting keys allocated to (and including) <code>slot</code>.
-     */
-    protected final void shiftConflictingKeys(int slotCurr)
-    {
-        // Copied nearly verbatim from fastutil's impl.
-        final int mask = allocated.length - 1;
-        int slotPrev, slotOther;
-        while (true)
-        {
-            slotCurr = ((slotPrev = slotCurr) + 1) & mask;
-
-            while (allocated[slotCurr])
-            {
-                slotOther = rehash(keys[slotCurr]) & mask;
-                if (slotPrev <= slotCurr)
-                {
-                    // we're on the right of the original slot.
-                    if (slotPrev >= slotOther || slotOther > slotCurr)
-                        break;
-                }
-                else
-                {
-                    // we've wrapped around.
-                    if (slotPrev >= slotOther && slotOther > slotCurr)
-                        break;
-                }
-                slotCurr = (slotCurr + 1) & mask;
-            }
-
-            if (!allocated[slotCurr])
-                break;
-
-            // Shift key/value pair.
-            keys[slotPrev] = keys[slotCurr];
-            values[slotPrev] = values[slotCurr];
-        }
-
-        allocated[slotPrev] = false;
-
-        /*  */
-        /*  */
     }
 
     public int get(long key)
@@ -707,11 +593,6 @@ class BigramHashMap {
     public final static int MIN_CAPACITY = 4;
 
     /**
-     * Default load factor.
-     */
-    public final static float DEFAULT_LOAD_FACTOR = 0.75f;
-
-    /**
      * Hash-indexed array holding all keys.
      *
      * @see #values
@@ -747,7 +628,7 @@ class BigramHashMap {
      * The load factor for this map (fraction of allocated slots
      * before the buffers must be rehashed or reallocated).
      */
-    public final float loadFactor;
+    public final float loadFactor = 0.75f;
 
     /**
      * Cached capacity threshold at which we must resize the buffers.
@@ -775,20 +656,6 @@ class BigramHashMap {
     }
 
     /**
-     * Creates a hash map with the given initial capacity, default load factor of
-     * {@value #DEFAULT_LOAD_FACTOR}.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     *
-     * @param initialCapacity Initial capacity (greater than zero and automatically
-     *            rounded to the next power of two).
-     */
-    public BigramHashMap(int initialCapacity)
-    {
-        this(initialCapacity, DEFAULT_LOAD_FACTOR);
-    }
-
-    /**
      * Creates a hash map with the given initial capacity,
      * load factor.
      *
@@ -799,16 +666,13 @@ class BigramHashMap {
      *
      * @param loadFactor The load factor (greater than zero and smaller than 1).
      */
-    public BigramHashMap(int initialCapacity, float loadFactor)
+    public BigramHashMap(int initialCapacity)
     {
         initialCapacity = Math.max(initialCapacity, MIN_CAPACITY);
 
         assert initialCapacity == DEFAULT_CAPACITY
                 : "Initial capacity not supported";
-        assert loadFactor > 0 && loadFactor <= 1
-                : "Load factor must be between (0, 1].";
 
-        this.loadFactor = loadFactor;
         allocateBuffers(roundCapacity(initialCapacity));
     }
 
@@ -959,47 +823,6 @@ class BigramHashMap {
         this.allocated = new boolean [capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
-    }
-
-    protected final void shiftConflictingKeys(int slotCurr)
-    {
-        // Copied nearly verbatim from fastutil's impl.
-        final int mask = allocated.length - 1;
-        int slotPrev, slotOther;
-        while (true)
-        {
-            slotCurr = ((slotPrev = slotCurr) + 1) & mask;
-
-            while (allocated[slotCurr])
-            {
-                slotOther = rehash(keys[slotCurr]) & mask;
-                if (slotPrev <= slotCurr)
-                {
-                    // we're on the right of the original slot.
-                    if (slotPrev >= slotOther || slotOther > slotCurr)
-                        break;
-                }
-                else
-                {
-                    // we've wrapped around.
-                    if (slotPrev >= slotOther && slotOther > slotCurr)
-                        break;
-                }
-                slotCurr = (slotCurr + 1) & mask;
-            }
-
-            if (!allocated[slotCurr])
-                break;
-
-            // Shift key/value pair.
-            keys[slotPrev] = keys[slotCurr];
-            counts[slotPrev] = counts[slotCurr];
-            fertilities[slotPrev] = fertilities[slotCurr];
-            postFertilities[slotPrev] = postFertilities[slotCurr];
-        }
-
-        allocated[slotPrev] = false;
-
     }
 
     public int getCount(long key)
