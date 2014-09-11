@@ -58,9 +58,10 @@ class LanguageModel implements NgramLanguageModel {
         return 3;
     }
 
+    int[] unigrams = new int[500000];
+    Arrays.fill(unigrams, 0);
     LongIntOpenHashMap trigrams = new LongIntOpenHashMap();
     LongIntOpenHashMap bigrams = new LongIntOpenHashMap();
-    HashMap<Integer, Integer> unigrams = new HashMap<Integer, Integer>();
     // Fertility refers to N1+(*, ngram)
     HashMap<Integer, Integer> unigramFertility = new HashMap<Integer, Integer>();
     LongIntOpenHashMap bigramFertility = new LongIntOpenHashMap();
@@ -125,8 +126,7 @@ class LanguageModel implements NgramLanguageModel {
                     }
                     bigrams.putOrAdd(key, 1, 1);
                 }
-                value2 = unigrams.get(new Integer(curr));
-                unigrams.put(new Integer(curr), value2 == null ? new Integer(1) : new Integer(value2 + 1));
+                unigrams[curr] += 1;
             }
         }
     }
@@ -209,7 +209,7 @@ class LanguageModel implements NgramLanguageModel {
         for (int i = 0; i < ngram.length; i++) {
             word = indexer.get(ngram[i]);
             words.add(word);
-            wordCounts.add(unigrams.get(new Integer(ngram[i])));
+            wordCounts.add(unigrams[ngram[i]]);
         }
         out.append(" ");
         out.append(words.toString());
@@ -239,7 +239,7 @@ class LanguageModel implements NgramLanguageModel {
             val = bigrams.get(key);
         }
         if (ngram.length == 1) {
-            Integer v = unigrams.get(new Integer(ngram[0]));
+            Integer v = unigrams[ngram[0]]);
             val = v == null ? 0 : v.intValue();
         }
         return val == 0 ? 0 : val;
