@@ -121,28 +121,6 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
-        int b0 = 0, s0 = 0, b1 = 0, s1 = 0, b2 = 0, s2 = 0;
-        int limit = (1 << 16) - 1;
-        for (int i=0; i<bigrams.keys.length; i++) {
-            if (bigrams.keys[i] != Counter.EMPTY) {
-                if (bigrams.counts[i] < limit) {
-                    s0++;
-                } else {
-                    b0++;
-                }
-                if (bigrams.fertilities[i] < limit) {
-                    s1++;
-                } else {
-                    b1++;
-                }
-                if (bigrams.postFertilities[i] < limit) {
-                    s2++;
-                } else {
-                    b2++;
-                }
-            }
-        }
-        System.out.println(s0 + "," + b0 + "; " + s1 + "," + b1 + ", " + s2 + "," + b2);
     }
 
     static int max(int[] values) {
@@ -421,15 +399,14 @@ class TrigramCounter extends Counter {
 
 class BigramCounter extends Counter {
 
-    public int[] counts;
-    public int[] fertilities;
-    public int[] postFertilities;
+    public short[] counts;
+    public short[] fertilities;
+    public short[] postFertilities;
 
     public int bigramTypeCount;
     public int assigned;
 
     private int resizeThreshold;
-    private int lastSlot;
 
     public BigramCounter() {
         allocateBuffers(DEFAULT_CAPACITY);
@@ -443,9 +420,8 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                final int v = counts[slot];
-                if (v == 0) bigramTypeCount++;
-                counts[slot] = v + 1;
+                if (counts[slot] == 0) bigramTypeCount++;
+                counts[slot]++;
                 return;
             }
             slot = (slot + 1) & mask;
@@ -502,10 +478,10 @@ class BigramCounter extends Counter {
     }
 
     private void expandAndRehash() {
-        final long [] oldKeys = this.keys;
-        final int [] oldCounts = this.counts;
-        final int [] oldFertilities = this.fertilities;
-        final int [] oldPostFertilities = this.postFertilities;
+        final long[] oldKeys = this.keys;
+        final short[] oldCounts = this.counts;
+        final short[] oldFertilities = this.fertilities;
+        final short[] oldPostFertilities = this.postFertilities;
 
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
@@ -514,9 +490,9 @@ class BigramCounter extends Counter {
         for (int i = 0; i < oldKeys.length; i++) {
             if (oldKeys[i] != EMPTY) {
                 final long key = oldKeys[i];
-                final int count = oldCounts[i];
-                final int fertility = oldFertilities[i];
-                final int postFertility = oldPostFertilities[i];
+                final short count = oldCounts[i];
+                final short fertility = oldFertilities[i];
+                final short postFertility = oldPostFertilities[i];
 
                 int slot = rehash(key) & mask;
                 while (keys[slot] != EMPTY) {
@@ -530,16 +506,14 @@ class BigramCounter extends Counter {
                 postFertilities[slot] = postFertility;
             }
         }
-
-        lastSlot = -1;
     }
 
     private void allocateBuffers(int capacity) {
-        this.keys = new long [capacity];
+        this.keys = new long[capacity];
         Arrays.fill(this.keys, EMPTY);
-        this.counts = new int [capacity];
-        this.fertilities = new int [capacity];
-        this.postFertilities = new int [capacity];
+        this.counts = new short[capacity];
+        this.fertilities = new short[capacity];
+        this.postFertilities = new short[capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
@@ -549,7 +523,7 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                return counts[slot];
+                return counts[slot] & 0xffff;
             }
 
             slot = (slot + 1) & mask;
@@ -561,7 +535,7 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                return fertilities[slot];
+                return fertilities[slot] & 0xffff;
             }
 
             slot = (slot + 1) & mask;
@@ -573,7 +547,7 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                return postFertilities[slot];
+                return postFertilities[slot] & 0xffff;
             }
 
             slot = (slot + 1) & mask;
@@ -582,6 +556,8 @@ class BigramCounter extends Counter {
     }
 
     protected String valuesAsString(int i) {
-        return counts[i] + ", " + fertilities[i] + ", " + postFertilities[i];
+        return (counts[i] & 0xffff) + ", "
+                + (fertilities[i] & 0xffff) + ", "
+                + (postFertilities[i] & 0xffff);
     }
 }
