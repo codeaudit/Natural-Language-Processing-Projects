@@ -1,5 +1,6 @@
 package edu.berkeley.nlp.assignments.assign1.student;
 
+import java.lang.*;
 import java.lang.Integer;
 import java.lang.Long;
 import java.lang.String;
@@ -93,40 +94,27 @@ class LanguageModel implements NgramLanguageModel {
                 prev = curr;
                 curr = indexer.addAndGetIndex(word);
                 assert(curr < 1<<21);
+                long keyPC = ((long)prev << 21) + curr;
                 if (i >= 2) {
-                    long key = 0;
-                    key += prev2;
-                    key <<= 21;
-                    key += prev;
-                    key <<= 21;
-                    key += curr;
-                    if (!trigrams.containsKey(key)) {
-                        long keyPC = prev;
-                        keyPC <<= 21;
-                        keyPC += curr;
+                    long key3 = ((long)prev2 << 21) + prev;
+                    key3 <<= 21; key3 += curr;
+                    if (!trigrams.containsKey(key3)) {
+                        long key2P = ((long)prev2 << 21) + prev;
+                        bigrams.incrementPostFertility(key2P);
                         bigrams.incrementFertility(keyPC);
-
                         // expandArray(sumFertility, prev);
                         sumFertility[prev] += 1;
-
-                        long key2;
-                        key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
-                        bigrams.incrementPostFertility(key2);
                     }
-                    trigrams.increment(key);
+                    trigrams.increment(key3);
                 }
                 if (i >= 1) {
-                    long key = 0;
-                    key += prev;
-                    key <<= 21;
-                    key += curr;
-                    if (bigrams.getCount(key) == 0) { // TODO: Change to lget
+                    if (bigrams.getCount(keyPC) == 0) { // TODO: Change to lget
                         // expandArray(unigramFertility, curr);
                         unigramFertility[curr] += 1;
                         // expandArray(unigramPostFertility, prev);
                         unigramPostFertility[prev] += 1;
                     }
-                    bigrams.incrementCount(key);
+                    bigrams.incrementCount(keyPC);
                 }
                 // expandArray(unigrams, curr);
                 unigrams[curr] += 1;
@@ -163,11 +151,11 @@ class LanguageModel implements NgramLanguageModel {
 
 
         int word2 = ngram[to-2];
-        long key = 0; key += word2; key <<= 21; key += word3;
-        int fert = bigrams.getFertility(key);
-        double pBigram = fert == 0 ? 0 : fert - D;
+        long key = ((long)word2 << 21) + word3;
+        int fertility = bigrams.getFertility(key);
+        double pBigram = fertility == 0 ? 0 : fertility - D;
         pBigram += D * unigramPostFertility[word2] * pUnigram;
-        int fertility = sumFertility[word2];
+        fertility = sumFertility[word2];
         if (fertility == 0) {
             assert pBigram == 0 : pBigram;
         } else {
@@ -176,9 +164,6 @@ class LanguageModel implements NgramLanguageModel {
 
         if (pBigram == 0) pBigram = ZERO;
         if (order == 2) {
-//            if (pBigram == 0) throw new Error(
-//                    logProbDump(Double.NEGATIVE_INFINITY, Arrays.copyOfRange(ngram, from, to))
-//            );
             double ret = Math.log(pBigram);
             assert !(Double.isNaN(ret) || Double.isInfinite(ret)) && ret <= 0 : ret;
             return ret;
@@ -186,7 +171,7 @@ class LanguageModel implements NgramLanguageModel {
 
 
         int word1 = ngram[to-3];
-        key = 0; key += word1; key <<= 21; key += word2; key <<= 21; key += word3;
+        key = ((long)word1 << 21) + word2; key <<= 21; key += word3;
         int count = trigrams.get(key);
         double pTrigram = count == 0 ? 0 : (double)(count) - D;
 
@@ -205,8 +190,7 @@ class LanguageModel implements NgramLanguageModel {
         if (pTrigram == 0) return LOG_ZERO;
         double ret = Math.log(pTrigram);
         assert !(Double.isNaN(ret) || Double.isInfinite(ret)) && ret <= 0 : logProbDump(
-                ret,
-                Arrays.copyOfRange(ngram, from, to)
+                ret, Arrays.copyOfRange(ngram, from, to)
         );
         return ret;
     }
@@ -237,32 +221,22 @@ class LanguageModel implements NgramLanguageModel {
         int val = 0;
         if (ngram.length > 3) return 0;
         if (ngram.length == 3) {
-            long key = 0;
-            key += ngram[0];
-            key <<= 21;
-            key += ngram[1];
-            key <<= 21;
-            key += ngram[2];
+            long key = ((long)ngram[0] << 21) + ngram[1]; key <<= 21; key += ngram[2];
             val = trigrams.get(key);
         }
         if (ngram.length == 2) {
-            long key = 0;
-            key += ngram[0];
-            key <<= 21;
-            key += ngram[1];
+            long key = ((long)ngram[0] << 21) + ngram[1];
             val = bigrams.getCount(key);
         }
         if (ngram.length == 1) {
-            Integer v = unigrams[ngram[0]];
-            val = v == null ? 0 : v.intValue();
+            val = unigrams[ngram[0]];
         }
         return val == 0 ? 0 : val;
     }
 }
 
-// Following classes are modifications from Carrot Search Labs HPPC
-// package (OpenHashMap), and some methods (such as hashing) are
-// directly copied.
+// Following classes are based on Carrot Search Labs HPPC OpenHashMap
+// and some methods (such as hashing) are directly copied.
 abstract class Counter {
     public final static int DEFAULT_CAPACITY = 16;
     public final static int MIN_CAPACITY = 4;
@@ -292,17 +266,24 @@ abstract class Counter {
 
     abstract protected String valuesAsString(int index);
 
+    public static String keyToString(long key) {
+        final long mask = (1 << 21) - 1;
+        long R = key & mask; key >>= 21;
+        long M = key & mask; key >>= 21;
+        return (key & mask) + "_" + M + "_" + R;
+    }
+
     public String toString() {
         final StringBuilder buffer = new StringBuilder();
         buffer.append("[");
 
         boolean first = true;
-        for (int i = 0; i < keys.length; i++)
-        {
+        for (int i = 0; i < keys.length; i++) {
             if (!allocated[i]) continue;
-            if (!first) buffer.append(", ");
-            buffer.append(keys[i]);
-            buffer.append("=>");
+            if (!first) buffer.append(", \n");
+            long key = keys[i];
+            buffer.append(keyToString(key));
+            buffer.append(" => ");
             buffer.append(valuesAsString(i));
             first = false;
         }
@@ -313,54 +294,28 @@ abstract class Counter {
 
 class TrigramCounter extends Counter {
 
-    public int [] values;
+    public int[] values;
     public int assigned;
     private int resizeThreshold;
     private int lastSlot;
 
     public TrigramCounter() {
-        this(DEFAULT_CAPACITY);
-    }
-
-    public TrigramCounter(int initialCapacity) {
         allocateBuffers(DEFAULT_CAPACITY);
     }
 
-    public int put(long key, int value) {
-        if (assigned >= resizeThreshold)
-            expandAndRehash();
-
-        final int mask = allocated.length - 1;
-        int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
-                final int oldValue = values[slot];
-                values[slot] = value;
-                return oldValue;
-            }
-
-            slot = (slot + 1) & mask;
+    public final void increment(long key) {
+        if (lastSlot >= 0){
+            values[lastSlot] += 1;
+            return;
         }
 
-        assigned++;
-        allocated[slot] = true;
-        keys[slot] = key;
-        values[slot] = value;
-        return ((int) 0);
-    }
-
-    public final void increment(long key) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 values[slot] += 1;
                 return;
             }
@@ -383,20 +338,14 @@ class TrigramCounter extends Counter {
         allocateBuffers(nextCapacity(keys.length));
 
         final int mask = allocated.length - 1;
-        for (int i = 0; i < oldStates.length; i++)
-        {
-            if (oldStates[i])
-            {
+        for (int i = 0; i < oldStates.length; i++) {
+            if (oldStates[i]) {
                 final long key = oldKeys[i];
                 final int value = oldValues[i];
 
                 int slot = rehash(key) & mask;
-                while (allocated[slot])
-                {
-                    if (((key) == (keys[slot])))
-                    {
-                        break;
-                    }
+                while (allocated[slot]) {
+                    if (((key) == (keys[slot]))) break;
                     slot = (slot + 1) & mask;
                 }
 
@@ -420,10 +369,8 @@ class TrigramCounter extends Counter {
     public int get(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 return values[slot];
             }
 
@@ -432,29 +379,11 @@ class TrigramCounter extends Counter {
         return ((int) 0);
     }
 
-    public int lget() {
-        assert lastSlot >= 0 : "Call containsKey() first.";
-        assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
-
-        return values[lastSlot];
-    }
-
-    public int lset(int key) {
-        assert lastSlot >= 0 : "Call containsKey() first.";
-        assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
-
-        final int previous = values[lastSlot];
-        values[lastSlot] = key;
-        return previous;
-    }
-
     public boolean containsKey(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 lastSlot = slot;
                 return true;
             }
@@ -492,10 +421,8 @@ class BigramCounter extends Counter {
 
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 final int v = counts[slot];
                 if (v == 0) bigramTypeCount++;
                 counts[slot] = v + 1;
@@ -519,10 +446,8 @@ class BigramCounter extends Counter {
 
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 fertilities[slot] += 1;
                 return;
             }
@@ -543,10 +468,8 @@ class BigramCounter extends Counter {
 
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 postFertilities[slot] += 1;
                 return;
             }
@@ -572,22 +495,16 @@ class BigramCounter extends Counter {
         allocateBuffers(nextCapacity(keys.length));
 
         final int mask = allocated.length - 1;
-        for (int i = 0; i < oldStates.length; i++)
-        {
-            if (oldStates[i])
-            {
+        for (int i = 0; i < oldStates.length; i++) {
+            if (oldStates[i]) {
                 final long key = oldKeys[i];
                 final int count = oldCounts[i];
                 final int fertility = oldFertilities[i];
                 final int postFertility = oldPostFertilities[i];
 
                 int slot = rehash(key) & mask;
-                while (allocated[slot])
-                {
-                    if (((key) == (keys[slot])))
-                    {
-                        break;
-                    }
+                while (allocated[slot]) {
+                    if (((key) == (keys[slot]))) break;
                     slot = (slot + 1) & mask;
                 }
 
@@ -615,10 +532,8 @@ class BigramCounter extends Counter {
     public int getCount(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 return counts[slot];
             }
 
@@ -629,10 +544,8 @@ class BigramCounter extends Counter {
     public int getFertility(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 return fertilities[slot];
             }
 
@@ -643,32 +556,14 @@ class BigramCounter extends Counter {
     public int getPostFertility(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
+        while (allocated[slot]) {
+            if (((key) == (keys[slot]))) {
                 return postFertilities[slot];
             }
 
             slot = (slot + 1) & mask;
         }
         return ((int) 0);
-    }
-
-    public int lget() {
-        assert lastSlot >= 0 : "Call containsKey() first.";
-        assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
-
-        return counts[lastSlot];
-    }
-
-    public int lset(int key) {
-        assert lastSlot >= 0 : "Call containsKey() first.";
-        assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
-
-        final int previous = counts[lastSlot];
-        counts[lastSlot] = key;
-        return previous;
     }
 
     protected String valuesAsString(int i) {
