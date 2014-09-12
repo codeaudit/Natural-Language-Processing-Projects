@@ -18,7 +18,11 @@
 
 \section{Introduction}
 
-This report describes an implemenation of Kneser-Ney trigram language model. The model stores counts in optimized hashmaps and calculates probabilities at decode time. It is trained on a training corpus of nine million sentences, and tested as part of a machine translater. The model's implementation details, performance (BLEU, memory usage, decode speed), and areas for improvement follow.
+This report describes an implemenation of Kneser-Ney trigram language model, which estimates probability of a word type given the two preceding words. The model stores counts in optimized hashmaps and calculates probabilities at decode time. It is trained on a training corpus of nine million sentences, and tested as part of a machine translater. The model's implementation details, performance (BLEU, memory usage, decode speed), and areas for improvement follow.
+
+\section{Smoothing Algorithm}
+
+
 
 \section{Trading accuracy for memory}
 
