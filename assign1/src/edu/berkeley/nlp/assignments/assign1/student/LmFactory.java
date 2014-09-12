@@ -60,7 +60,7 @@ class LanguageModel implements NgramLanguageModel {
         return 3;
     }
 
-    int[] unigrams = new int[500000];
+    // int[] unigrams = new int[500000];
     // Fertility refers to N1+(*, ngram)
     int[] unigramFertility = new int[500000];
     // This one is N1+(ngram, *)
@@ -74,7 +74,7 @@ class LanguageModel implements NgramLanguageModel {
     public LanguageModel(Iterable<List<String>> sentenceCollection) {
         int sent = 0;
         StringIndexer indexer = EnglishWordIndexer.getIndexer();
-        Arrays.fill(unigrams, 0);
+        // Arrays.fill(unigrams, 0);
         Arrays.fill(unigramFertility, 0);
         Arrays.fill(unigramPostFertility, 0);
         Arrays.fill(sumFertility, 0);
@@ -109,7 +109,7 @@ class LanguageModel implements NgramLanguageModel {
                     trigrams.increment(key3);
                 }
                 if (i >= 1) {
-                    if (bigrams.getCount(keyPC) == 0) { // TODO: Change to lget
+                    if (bigrams.getCount(keyPC) == 0) {
                         // expandArray(unigramFertility, curr);
                         unigramFertility[curr] += 1;
                         // expandArray(unigramPostFertility, prev);
@@ -118,7 +118,7 @@ class LanguageModel implements NgramLanguageModel {
                     bigrams.incrementCount(keyPC);
                 }
                 // expandArray(unigrams, curr);
-                unigrams[curr] += 1;
+                // unigrams[curr] += 1;
             }
         }
     }
@@ -133,7 +133,7 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     void expandArray(int[] array, int index) {
-
+        // skipped implementing because unnecessary for this training set
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
@@ -158,7 +158,7 @@ class LanguageModel implements NgramLanguageModel {
         pBigram += D * unigramPostFertility[word2] * pUnigram;
         fertility = sumFertility[word2];
         if (fertility == 0) {
-            assert pBigram == 0 : pBigram;
+            pBigram = 0;
         } else {
             pBigram /= (double)fertility;
         }
@@ -208,7 +208,7 @@ class LanguageModel implements NgramLanguageModel {
         for (int i = 0; i < ngram.length; i++) {
             word = indexer.get(ngram[i]);
             words.add(word);
-            wordCounts.add(unigrams[ngram[i]]);
+            // wordCounts.add(unigrams[ngram[i]]);
         }
         out.append(" ");
         out.append(words.toString());
@@ -229,9 +229,9 @@ class LanguageModel implements NgramLanguageModel {
             long key = ((long)ngram[0] << 21) + ngram[1];
             val = bigrams.getCount(key);
         }
-        if (ngram.length == 1) {
-            val = unigrams[ngram[0]];
-        }
+//        if (ngram.length == 1) {
+//            val = unigrams[ngram[0]];
+//        }
         return val == 0 ? 0 : val;
     }
 }
@@ -371,7 +371,6 @@ class TrigramCounter extends Counter {
             if (((key) == (keys[slot]))) {
                 return values[slot] & 0xffff;
             }
-
             slot = (slot + 1) & mask;
         }
         return ((int) 0);
@@ -527,7 +526,6 @@ class BigramCounter extends Counter {
             if (((key) == (keys[slot]))) {
                 return counts[slot];
             }
-
             slot = (slot + 1) & mask;
         }
         return ((int) 0);
@@ -539,7 +537,6 @@ class BigramCounter extends Counter {
             if (((key) == (keys[slot]))) {
                 return fertilities[slot] & 0xffff;
             }
-
             slot = (slot + 1) & mask;
         }
         return ((int) 0);
@@ -549,13 +546,12 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                lastCount = counts[slot] & 0xffff;
+                lastCount = counts[slot];
                 return postFertilities[slot] & 0xffff;
             }
-
             slot = (slot + 1) & mask;
         }
-        lastCount = (int)0;
+        lastCount = 0;
         return ((int) 0);
     }
 
