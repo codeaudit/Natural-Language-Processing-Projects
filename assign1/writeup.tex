@@ -18,11 +18,21 @@
 
 \section{Introduction}
 
-This report describes an implemenation of Kneser-Ney trigram language model, which estimates probability of a word type given the two preceding words. The model stores counts in optimized hashmaps and calculates probabilities at decode time. It is trained on a training corpus of nine million sentences, and tested as part of a machine translater. The model's implementation details, performance (BLEU, memory usage, decode speed), and areas for improvement follow.
+This report describes a Java implemenation of Kneser-Ney trigram language model, which estimates probability of a word type given the two preceding words. The model stores counts in optimized hashmaps and calculates probabilities at decode time. It is trained on a training corpus of nine million sentences, and tested as part of a machine translater. The model's implementation details, performance (BLEU, memory usage, decode speed), and areas for improvement follow.
 
 \section{Smoothing Algorithm}
 
+The algorithm used in this implementation is the unmodified Kneser-Ney described in Chen \& Goodman (1998), where $c(n-gram)$ is its count for $n=3$ and $|{w_i : count(w_i, ngram) > 0}|$ for $n=1$ and $n=2$. When the bigram being conditioned on has not been seen before, this language model reports the probability of the bigram model using fertilities instead of counts for simplicity, as it does not have a significant effect on BLEU. In the case that a type has not been seen before, the language model returns an arbitrary $0.000001$. The discount rate used is a constant 0.75, as it proved to have a better BLEU score than other tested discount rates. The variable discount rate from Chen \& Goodman's modified Kneser-Ney is not implemented.
 
+\section{Data structures}
+
+All types are asigned an integer during parsing to represent them in the language model to avoid storing strings. The language model is trained in one pass with no compression afterwards.
+
+The fertilities (count of types that follow and count of types that precede) of unigrams, to calculate the base case of Kneser-Ney are stored in integer arrays indexed by the unigram. Since every unigram will have fertility counts, this method is dense, and occupies 4MB for all unigrams. The number of trigrams whose middle word is a given type is stored in this manner as well. Unigram counts are not stored as they are not needed for this version of Kneser-Ney.
+
+Bigram \& trigram counts, as well as bigram fertilities, are stored in hashmaps keyed by a \texttt{long} calculated as the concatenation of the indices of the types in the ngram. Since Java hashmaps are inadequate in both memory and speed, custom counter classes are used. These counter classes are based on Carrot Search Labs OpenHashMap, and some methods such as hashing and expansion are copied.
+
+The custom counters use Java primitive arrays for keys and data. A special key is used to denote empty slot. Keys are hashed using MurmurHash3, and are placed in the next slot in case of collision. For bigrams, counts and fertilities are stored in separate arrays of the same counter so keys are only stored once per bigram. The counter doubles in size when it reaches 75\% load. The counters only support incrementing by 1, and retrieving counts. When queries to the counter occur in pairs during decoding, such as fertility and count of bigrams, the counter fetches both and stores one in a cache instead of rehashing on the second query, which saves around 20\% decode time.
 
 \section{Trading accuracy for memory}
 

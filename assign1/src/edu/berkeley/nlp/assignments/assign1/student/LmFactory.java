@@ -82,6 +82,7 @@ class LanguageModel implements NgramLanguageModel {
         for (List<String> sentence : sentenceCollection) {
             sent++;
             if (sent % 1000000 == 0) System.out.println("On sentence " + sent);
+            if (sent == 1500000) return;
             List<String> stoppedSentence = new ArrayList<String>(sentence);
             stoppedSentence.add(0, START);
             stoppedSentence.add(STOP);
@@ -121,6 +122,7 @@ class LanguageModel implements NgramLanguageModel {
                 // unigrams[curr] += 1;
             }
         }
+        System.out.println("Sentences: " + sent);
     }
 
     static int max(int[] values) {
@@ -137,7 +139,7 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
-        final double D = 0.65d;
+        final double D = 0.75d;
         int order = to - from;
         int word3 = ngram[to-1];
         double pUnigram = (double)unigramFertility[word3];
