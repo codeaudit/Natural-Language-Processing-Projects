@@ -236,14 +236,14 @@ class LanguageModel implements NgramLanguageModel {
 }
 
 // Following classes are based on Carrot Search Labs HPPC OpenHashMap
-// and some methods (such as hashing) are directly copied.
+// and some methods (such as rehash) are directly copied.
 abstract class Counter {
     public final static int DEFAULT_CAPACITY = 16;
     public final static int MIN_CAPACITY = 4;
     public final float loadFactor = 0.75f;
 
+    public final long EMPTY = 1 << 63;
     public long[] keys;
-    public boolean[] allocated;
 
     protected int nextCapacity(int current) {
         assert current > 0 && Long.bitCount(current) == 1
@@ -279,7 +279,7 @@ abstract class Counter {
 
         boolean first = true;
         for (int i = 0; i < keys.length; i++) {
-            if (!allocated[i]) continue;
+            if (keys[i] == EMPTY) continue;
             if (!first) buffer.append(", \n");
             long key = keys[i];
             buffer.append(keyToString(key));
@@ -304,7 +304,7 @@ class TrigramCounter extends Counter {
     }
 
     public final void increment(long key) {
-        if (lastSlot >= 0){
+        if (lastSlot >= 0) {
             values[lastSlot] += 1;
             return;
         }
@@ -312,9 +312,9 @@ class TrigramCounter extends Counter {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 values[slot] += 1;
                 return;
@@ -323,7 +323,6 @@ class TrigramCounter extends Counter {
         }
 
         assigned++;
-        allocated[slot] = true;
         keys[slot] = key;
         values[slot] = 1;
         return;
@@ -332,24 +331,22 @@ class TrigramCounter extends Counter {
     private void expandAndRehash() {
         final long [] oldKeys = this.keys;
         final int [] oldValues = this.values;
-        final boolean [] oldStates = this.allocated;
 
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
 
-        final int mask = allocated.length - 1;
-        for (int i = 0; i < oldStates.length; i++) {
-            if (oldStates[i]) {
+        final int mask = keys.length - 1;
+        for (int i = 0; i < oldKeys.length; i++) {
+            if (oldKeys[i] != EMPTY) {
                 final long key = oldKeys[i];
                 final int value = oldValues[i];
 
                 int slot = rehash(key) & mask;
-                while (allocated[slot]) {
+                while (keys[slot] != EMPTY) {
                     if (((key) == (keys[slot]))) break;
                     slot = (slot + 1) & mask;
                 }
 
-                allocated[slot] = true;
                 keys[slot] = key;
                 values[slot] = value;
             }
@@ -360,16 +357,16 @@ class TrigramCounter extends Counter {
 
     private void allocateBuffers(int capacity) {
         this.keys = new long [capacity];
+        Arrays.fill(this.keys, EMPTY);
         this.values = new int [capacity];
-        this.allocated = new boolean [capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
 
     public int get(long key) {
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 return values[slot];
             }
@@ -380,9 +377,9 @@ class TrigramCounter extends Counter {
     }
 
     public boolean containsKey(long key) {
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 lastSlot = slot;
                 return true;
@@ -419,9 +416,9 @@ class BigramCounter extends Counter {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 final int v = counts[slot];
                 if (v == 0) bigramTypeCount++;
@@ -433,7 +430,6 @@ class BigramCounter extends Counter {
 
         bigramTypeCount++;
         assigned++;
-        allocated[slot] = true;
         keys[slot] = key;
         counts[slot] = 1;
         fertilities[slot] = 0;
@@ -444,9 +440,9 @@ class BigramCounter extends Counter {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 fertilities[slot] += 1;
                 return;
@@ -455,7 +451,6 @@ class BigramCounter extends Counter {
         }
 
         assigned++;
-        allocated[slot] = true;
         keys[slot] = key;
         counts[slot] = 0;
         fertilities[slot] = 1;
@@ -466,9 +461,9 @@ class BigramCounter extends Counter {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 postFertilities[slot] += 1;
                 return;
@@ -477,7 +472,6 @@ class BigramCounter extends Counter {
         }
 
         assigned++;
-        allocated[slot] = true;
         keys[slot] = key;
         counts[slot] = 0;
         fertilities[slot] = 0;
@@ -489,26 +483,24 @@ class BigramCounter extends Counter {
         final int [] oldCounts = this.counts;
         final int [] oldFertilities = this.fertilities;
         final int [] oldPostFertilities = this.postFertilities;
-        final boolean [] oldStates = this.allocated;
 
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
 
-        final int mask = allocated.length - 1;
-        for (int i = 0; i < oldStates.length; i++) {
-            if (oldStates[i]) {
+        final int mask = keys.length - 1;
+        for (int i = 0; i < oldKeys.length; i++) {
+            if (oldKeys[i] != EMPTY) {
                 final long key = oldKeys[i];
                 final int count = oldCounts[i];
                 final int fertility = oldFertilities[i];
                 final int postFertility = oldPostFertilities[i];
 
                 int slot = rehash(key) & mask;
-                while (allocated[slot]) {
+                while (keys[slot] != EMPTY) {
                     if (((key) == (keys[slot]))) break;
                     slot = (slot + 1) & mask;
                 }
 
-                allocated[slot] = true;
                 keys[slot] = key;
                 counts[slot] = count;
                 fertilities[slot] = fertility;
@@ -521,18 +513,18 @@ class BigramCounter extends Counter {
 
     private void allocateBuffers(int capacity) {
         this.keys = new long [capacity];
+        Arrays.fill(this.keys, EMPTY);
         this.counts = new int [capacity];
         this.fertilities = new int [capacity];
         this.postFertilities = new int [capacity];
-        this.allocated = new boolean [capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
 
     public int getCount(long key) {
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 return counts[slot];
             }
@@ -542,9 +534,9 @@ class BigramCounter extends Counter {
         return ((int) 0);
     }
     public int getFertility(long key) {
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 return fertilities[slot];
             }
@@ -554,9 +546,9 @@ class BigramCounter extends Counter {
         return ((int) 0);
     }
     public int getPostFertility(long key) {
-        final int mask = allocated.length - 1;
+        final int mask = keys.length - 1;
         int slot = rehash(key) & mask;
-        while (allocated[slot]) {
+        while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
                 return postFertilities[slot];
             }
