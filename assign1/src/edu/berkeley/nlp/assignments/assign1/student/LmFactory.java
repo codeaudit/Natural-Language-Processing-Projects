@@ -137,7 +137,7 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
-        final double D = 0.5d;
+        final double D = 0.75d;
         int order = to - from;
         int word3 = ngram[to-1];
         double pUnigram = (double)unigramFertility[word3];
