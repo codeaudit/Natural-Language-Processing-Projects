@@ -77,4 +77,8 @@ Printed memory use & 1.0 G & 341 M \\ \hline
 Decode time & 19.7x & 20.7x \\ \hline
 BLEU & 24.879 & 24.419 \\ \hline
 \end{tabular}
+\\
+
+The language model that discards data is submitted due to its vastly smaller memory footprint, though both versions meet requirements. The submitted version does not track unigram counts to save ~2MB memory and fails spot checks. Decode time may vary across machines.
+
 \end{document}
