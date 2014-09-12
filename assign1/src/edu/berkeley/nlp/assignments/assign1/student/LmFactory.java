@@ -5,6 +5,7 @@ import java.lang.Integer;
 import java.lang.Long;
 import java.lang.String;
 import java.lang.StringBuffer;
+import java.lang.System;
 import java.util.*;
 
 import edu.berkeley.nlp.langmodel.LanguageModelFactory;
@@ -120,6 +121,20 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
+        int bigger = 0, smaller = 0;
+        int[] v = trigrams.values;
+        long[] k = trigrams.keys;
+        for (int i = 0; i < v.length; i++) {
+            if (k[i] != Counter.EMPTY) {
+                if (v[i] >= 1<<16 - 1) {
+                    bigger++;
+                } else {
+                    smaller++;
+                }
+            }
+        }
+        System.out.println(bigger);
+        System.out.println(smaller);
     }
 
     static int max(int[] values) {
@@ -240,9 +255,9 @@ class LanguageModel implements NgramLanguageModel {
 abstract class Counter {
     public final static int DEFAULT_CAPACITY = 16;
     public final static int MIN_CAPACITY = 4;
-    public final float loadFactor = 0.75f;
+    public final static float loadFactor = 0.75f;
 
-    public final long EMPTY = 1 << 63;
+    public final static long EMPTY = 1 << 63;
     public long[] keys;
 
     protected int nextCapacity(int current) {
