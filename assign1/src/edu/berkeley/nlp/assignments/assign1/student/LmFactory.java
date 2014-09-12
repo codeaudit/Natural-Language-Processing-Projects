@@ -94,13 +94,13 @@ class LanguageModel implements NgramLanguageModel {
                 prev2 = prev;
                 prev = curr;
                 curr = indexer.addAndGetIndex(word);
-                assert(curr < 1<<21);
-                long keyPC = ((long)prev << 21) + curr;
+                assert(curr < 1<<19);
+                long keyPC = ((long)prev << 19) + curr;
                 if (i >= 2) {
-                    long key3 = ((long)prev2 << 21) + prev;
-                    key3 <<= 21; key3 += curr;
+                    long key3 = ((long)prev2 << 19) + prev;
+                    key3 <<= 19; key3 += curr;
                     if (!trigrams.containsKey(key3)) {
-                        long key2P = ((long)prev2 << 21) + prev;
+                        long key2P = ((long)prev2 << 19) + prev;
                         bigrams.incrementPostFertility(key2P);
                         bigrams.incrementFertility(keyPC);
                         // expandArray(sumFertility, prev);
@@ -152,7 +152,7 @@ class LanguageModel implements NgramLanguageModel {
 
 
         int word2 = ngram[to-2];
-        long key = ((long)word2 << 21) + word3;
+        long key = ((long)word2 << 19) + word3;
         int fertility = bigrams.getFertility(key);
         double pBigram = fertility == 0 ? 0 : fertility - D;
         pBigram += D * unigramPostFertility[word2] * pUnigram;
@@ -172,11 +172,11 @@ class LanguageModel implements NgramLanguageModel {
 
 
         int word1 = ngram[to-3];
-        key = ((long)word1 << 21) + word2; key <<= 21; key += word3;
+        key = ((long)word1 << 19) + word2; key <<= 19; key += word3;
         int count = trigrams.get(key);
         double pTrigram = count == 0 ? 0 : (double)(count) - D;
 
-        key = 0; key += word1; key <<= 21; key += word2;
+        key = 0; key += word1; key <<= 19; key += word2;
         int fertility2 = bigrams.getPostFertility(key);
         pTrigram += fertility2 == 0 ? 0 : D * fertility2 * pBigram;
 
@@ -222,11 +222,11 @@ class LanguageModel implements NgramLanguageModel {
         int val = 0;
         if (ngram.length > 3) return 0;
         if (ngram.length == 3) {
-            long key = ((long)ngram[0] << 21) + ngram[1]; key <<= 21; key += ngram[2];
+            long key = ((long)ngram[0] << 19) + ngram[1]; key <<= 19; key += ngram[2];
             val = trigrams.get(key);
         }
         if (ngram.length == 2) {
-            long key = ((long)ngram[0] << 21) + ngram[1];
+            long key = ((long)ngram[0] << 19) + ngram[1];
             val = bigrams.getCount(key);
         }
 //        if (ngram.length == 1) {
@@ -268,9 +268,9 @@ abstract class Counter {
     abstract protected String valuesAsString(int index);
 
     public static String keyToString(long key) {
-        final long mask = (1 << 21) - 1;
-        long R = key & mask; key >>= 21;
-        long M = key & mask; key >>= 21;
+        final long mask = (1 << 19) - 1;
+        long R = key & mask; key >>= 19;
+        long M = key & mask; key >>= 19;
         return (key & mask) + "_" + M + "_" + R;
     }
 
