@@ -121,20 +121,6 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
-        int bigger = 0, smaller = 0;
-        int[] v = trigrams.values;
-        long[] k = trigrams.keys;
-        for (int i = 0; i < v.length; i++) {
-            if (k[i] != Counter.EMPTY) {
-                if (v[i] >= 1<<16 - 1) {
-                    bigger++;
-                } else {
-                    smaller++;
-                }
-            }
-        }
-        System.out.println(bigger);
-        System.out.println(smaller);
     }
 
     static int max(int[] values) {
@@ -309,7 +295,7 @@ abstract class Counter {
 
 class TrigramCounter extends Counter {
 
-    public int[] values;
+    public short[] values;
     public int assigned;
     private int resizeThreshold;
     private int lastSlot;
@@ -344,8 +330,8 @@ class TrigramCounter extends Counter {
     }
 
     private void expandAndRehash() {
-        final long [] oldKeys = this.keys;
-        final int [] oldValues = this.values;
+        final long[] oldKeys = this.keys;
+        final short[] oldValues = this.values;
 
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
@@ -354,7 +340,7 @@ class TrigramCounter extends Counter {
         for (int i = 0; i < oldKeys.length; i++) {
             if (oldKeys[i] != EMPTY) {
                 final long key = oldKeys[i];
-                final int value = oldValues[i];
+                final short value = oldValues[i];
 
                 int slot = rehash(key) & mask;
                 while (keys[slot] != EMPTY) {
@@ -371,9 +357,9 @@ class TrigramCounter extends Counter {
     }
 
     private void allocateBuffers(int capacity) {
-        this.keys = new long [capacity];
+        this.keys = new long[capacity];
         Arrays.fill(this.keys, EMPTY);
-        this.values = new int [capacity];
+        this.values = new short[capacity];
 
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
@@ -383,7 +369,7 @@ class TrigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                return values[slot];
+                return values[slot] & 0xffff;
             }
 
             slot = (slot + 1) & mask;
@@ -406,7 +392,7 @@ class TrigramCounter extends Counter {
     }
 
     protected String valuesAsString(int i) {
-        return Integer.toString(values[i]);
+        return Integer.toString(values[i] & 0xffff);
     }
 
 }
