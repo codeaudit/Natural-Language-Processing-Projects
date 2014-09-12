@@ -399,7 +399,7 @@ class TrigramCounter extends Counter {
 
 class BigramCounter extends Counter {
 
-    public short[] counts;
+    public int[] counts;
     public short[] fertilities;
     public short[] postFertilities;
 
@@ -479,7 +479,7 @@ class BigramCounter extends Counter {
 
     private void expandAndRehash() {
         final long[] oldKeys = this.keys;
-        final short[] oldCounts = this.counts;
+        final int[] oldCounts = this.counts;
         final short[] oldFertilities = this.fertilities;
         final short[] oldPostFertilities = this.postFertilities;
 
@@ -490,7 +490,7 @@ class BigramCounter extends Counter {
         for (int i = 0; i < oldKeys.length; i++) {
             if (oldKeys[i] != EMPTY) {
                 final long key = oldKeys[i];
-                final short count = oldCounts[i];
+                final int count = oldCounts[i];
                 final short fertility = oldFertilities[i];
                 final short postFertility = oldPostFertilities[i];
 
@@ -511,7 +511,7 @@ class BigramCounter extends Counter {
     private void allocateBuffers(int capacity) {
         this.keys = new long[capacity];
         Arrays.fill(this.keys, EMPTY);
-        this.counts = new short[capacity];
+        this.counts = new int[capacity];
         this.fertilities = new short[capacity];
         this.postFertilities = new short[capacity];
 
@@ -523,7 +523,7 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
-                return counts[slot] & 0xffff;
+                return counts[slot];
             }
 
             slot = (slot + 1) & mask;
@@ -556,7 +556,7 @@ class BigramCounter extends Counter {
     }
 
     protected String valuesAsString(int i) {
-        return (counts[i] & 0xffff) + ", "
+        return (counts[i]) + ", "
                 + (fertilities[i] & 0xffff) + ", "
                 + (postFertilities[i] & 0xffff);
     }
