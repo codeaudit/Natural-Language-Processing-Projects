@@ -66,8 +66,8 @@ class LanguageModel implements NgramLanguageModel {
     // This one is \Sum_w(N1+(*, key, w))
     int[] sumFertility = new int[500000];
 
-    BigramHashMap bigrams = new BigramHashMap();
-    LongIntOpenHashMap trigrams = new LongIntOpenHashMap();
+    BigramCounter bigrams = new BigramCounter();
+    TrigramCounter trigrams = new TrigramCounter();
 
     public LanguageModel(Iterable<List<String>> sentenceCollection) {
         int sent = 0;
@@ -101,15 +101,15 @@ class LanguageModel implements NgramLanguageModel {
                     key <<= 21;
                     key += curr;
                     if (!trigrams.containsKey(key)) {
-                        long key2 = 0;
-                        key2 += prev;
-                        key2 <<= 21;
-                        key2 += curr;
-                        bigrams.incrementFertility(key2);
+                        long keyPC = prev;
+                        keyPC <<= 21;
+                        keyPC += curr;
+                        bigrams.incrementFertility(keyPC);
 
                         // expandArray(sumFertility, prev);
                         sumFertility[prev] += 1;
 
+                        long key2;
                         key2 = 0; key2 += prev2; key2 <<= 21; key2 += prev;
                         bigrams.incrementPostFertility(key2);
                     }
@@ -148,7 +148,7 @@ class LanguageModel implements NgramLanguageModel {
     }
 
     public double getNgramLogProbability(int[] ngram, int from, int to) {
-        final double D = 0.5;
+        final double D = 0.5d;
         int order = to - from;
         int word3 = ngram[to-1];
         double pUnigram = (double)unigramFertility[word3];
@@ -260,91 +260,73 @@ class LanguageModel implements NgramLanguageModel {
     }
 }
 
-
-// THE FOLLOWING CLASS WAS COPIED FROM CARROT SEARCH LABS HPPC PACKAGE
-// AND MODIFIED FROM ITS ORIGINAL FORM FOR THIS APPLICATION.
-class LongIntOpenHashMap {
-    /**
-     * Default capacity.
-     */
+// Following classes are modifications from Carrot Search Labs HPPC
+// package (OpenHashMap), and some methods (such as hashing) are
+// directly copied.
+abstract class Counter {
     public final static int DEFAULT_CAPACITY = 16;
-
-    /**
-     * Minimum capacity for the map.
-     */
     public final static int MIN_CAPACITY = 4;
-
-    /**
-     * Hash-indexed array holding all keys.
-     *
-     * @see #values
-     */
-    public long [] keys;
-
-    /**
-     * Hash-indexed array holding all values associated to the keys
-     * stored in {@link #keys}.
-     *
-     * @see #keys
-     */
-    public int [] values;
-
-    /**
-     * Information if an entry (slot) in the {@link #values} table is allocated
-     * or empty.
-     *
-     * @see #assigned
-     */
-    public boolean [] allocated;
-
-    /**
-     * Cached number of assigned slots in {@link #allocated}.
-     */
-    public int assigned;
-
-    /**
-     * The load factor for this map (fraction of allocated slots
-     * before the buffers must be rehashed or reallocated).
-     */
     public final float loadFactor = 0.75f;
 
-    /**
-     * Cached capacity threshold at which we must resize the buffers.
-     */
-    private int resizeThreshold;
+    public long[] keys;
+    public boolean[] allocated;
 
-    /**
-     * The most recent slot accessed in {@link #containsKey} (required for
-     * {@link #lget}).
-     *
-     * @see #containsKey
-     * @see #lget
-     */
+    protected int nextCapacity(int current) {
+        assert current > 0 && Long.bitCount(current) == 1
+                : "Capacity must be a power of two.";
+        assert ((current << 1) > 0)
+                : "Maximum capacity exceeded (" + (0x80000000 >>> 1) + ").";
+
+        if (current < MIN_CAPACITY / 2) current = MIN_CAPACITY / 2;
+        return current << 1;
+    }
+
+    static int rehash(long k) {
+        k ^= k >>> 33;
+        k *= 0xff51afd7ed558ccdL;
+        k ^= k >>> 33;
+        k *= 0xc4ceb9fe1a85ec53L;
+        k ^= k >>> 33;
+        return (int)k;
+    }
+
+    abstract protected String valuesAsString(int index);
+
+    public String toString() {
+        final StringBuilder buffer = new StringBuilder();
+        buffer.append("[");
+
+        boolean first = true;
+        for (int i = 0; i < keys.length; i++)
+        {
+            if (!allocated[i]) continue;
+            if (!first) buffer.append(", ");
+            buffer.append(keys[i]);
+            buffer.append("=>");
+            buffer.append(valuesAsString(i));
+            first = false;
+        }
+        buffer.append("]");
+        return buffer.toString();
+    }
+}
+
+class TrigramCounter extends Counter {
+
+    public int [] values;
+    public int assigned;
+    private int resizeThreshold;
     private int lastSlot;
 
-    /**
-     * Creates a hash map with the default capacity of {@value #DEFAULT_CAPACITY},
-     * load factor of {@value #DEFAULT_LOAD_FACTOR}.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     */
-    public LongIntOpenHashMap()
-    {
+    public TrigramCounter() {
         this(DEFAULT_CAPACITY);
     }
 
-    public LongIntOpenHashMap(int initialCapacity)
-    {
-        initialCapacity = Math.max(initialCapacity, MIN_CAPACITY);
-
-        assert initialCapacity == DEFAULT_CAPACITY
-                : "Initial capacity not supported";
-
-        allocateBuffers(roundCapacity(initialCapacity));
+    public TrigramCounter(int initialCapacity) {
+        allocateBuffers(DEFAULT_CAPACITY);
     }
 
-    public int put(long key, int value)
-    {
+    public int put(long key, int value) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
@@ -369,8 +351,7 @@ class LongIntOpenHashMap {
         return ((int) 0);
     }
 
-    public final void increment(long key)
-    {
+    public final void increment(long key) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
@@ -393,13 +374,7 @@ class LongIntOpenHashMap {
         return;
     }
 
-
-    /**
-     * Expand the internal storage buffers (capacity) or rehash current
-     * keys and values if there are a lot of deleted slots.
-     */
-    private void expandAndRehash()
-    {
+    private void expandAndRehash() {
         final long [] oldKeys = this.keys;
         final int [] oldValues = this.values;
         final boolean [] oldStates = this.allocated;
@@ -407,10 +382,6 @@ class LongIntOpenHashMap {
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
 
-        /*
-         * Rehash all assigned slots from the old hash table. Deleted
-         * slots are discarded.
-         */
         final int mask = allocated.length - 1;
         for (int i = 0; i < oldStates.length; i++)
         {
@@ -418,9 +389,6 @@ class LongIntOpenHashMap {
             {
                 final long key = oldKeys[i];
                 final int value = oldValues[i];
-
-                /*  */
-                /*  */
 
                 int slot = rehash(key) & mask;
                 while (allocated[slot])
@@ -438,20 +406,10 @@ class LongIntOpenHashMap {
             }
         }
 
-        /*
-         * The number of assigned items does not change, the number of deleted
-         * items is zero since we have resized.
-         */
         lastSlot = -1;
     }
 
-    /**
-     * Allocate internal buffers for a given capacity.
-     *
-     * @param capacity New capacity (must be a power of two).
-     */
-    private void allocateBuffers(int capacity)
-    {
+    private void allocateBuffers(int capacity) {
         this.keys = new long [capacity];
         this.values = new int [capacity];
         this.allocated = new boolean [capacity];
@@ -459,8 +417,7 @@ class LongIntOpenHashMap {
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
 
-    public int get(long key)
-    {
+    public int get(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
         while (allocated[slot])
@@ -475,16 +432,14 @@ class LongIntOpenHashMap {
         return ((int) 0);
     }
 
-    public int lget()
-    {
+    public int lget() {
         assert lastSlot >= 0 : "Call containsKey() first.";
         assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
 
         return values[lastSlot];
     }
 
-    public int lset(int key)
-    {
+    public int lset(int key) {
         assert lastSlot >= 0 : "Call containsKey() first.";
         assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
 
@@ -493,8 +448,7 @@ class LongIntOpenHashMap {
         return previous;
     }
 
-    public boolean containsKey(long key)
-    {
+    public boolean containsKey(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
         while (allocated[slot])
@@ -510,174 +464,29 @@ class LongIntOpenHashMap {
         return false;
     }
 
-    /**
-     * Round the capacity to the next allowed value.
-     */
-    protected int roundCapacity(int requestedCapacity)
-    {
-        // Maximum positive integer that is a power of two.
-        if (requestedCapacity > (0x80000000 >>> 1))
-            return (0x80000000 >>> 1);
-
-        return Math.max(MIN_CAPACITY, requestedCapacity);
+    protected String valuesAsString(int i) {
+        return Integer.toString(values[i]);
     }
 
-    /**
-     * Return the next possible capacity, counting from the current buffers'
-     * size.
-     */
-    protected int nextCapacity(int current)
-    {
-        assert current > 0 && Long.bitCount(current) == 1
-                : "Capacity must be a power of two.";
-        assert ((current << 1) > 0)
-                : "Maximum capacity exceeded (" + (0x80000000 >>> 1) + ").";
-
-        if (current < MIN_CAPACITY / 2) current = MIN_CAPACITY / 2;
-        return current << 1;
-    }
-
-    public void clear()
-    {
-        assigned = 0;
-
-        // States are always cleared.
-        Arrays.fill(allocated, false);
-
-    }
-
-    public int size()
-    {
-        return assigned;
-    }
-
-    static int rehash(long k)
-    {
-        k ^= k >>> 33;
-        k *= 0xff51afd7ed558ccdL;
-        k ^= k >>> 33;
-        k *= 0xc4ceb9fe1a85ec53L;
-        k ^= k >>> 33;
-        return (int)k;
-    }
-
-    public String toString()
-    {
-        final StringBuilder buffer = new StringBuilder();
-        buffer.append("[");
-
-        boolean first = true;
-        for (int i = 0; i < allocated.length; i++)
-        {
-            if (!allocated[i]) continue;
-            if (!first) buffer.append(", ");
-            buffer.append(keys[i]);
-            buffer.append("=>");
-            buffer.append(values[i]);
-            first = false;
-        }
-        buffer.append("]");
-        return buffer.toString();
-    }
 }
 
-class BigramHashMap {
-    /**
-     * Default capacity.
-     */
-    public final static int DEFAULT_CAPACITY = 16;
+class BigramCounter extends Counter {
 
-    /**
-     * Minimum capacity for the map.
-     */
-    public final static int MIN_CAPACITY = 4;
-
-    /**
-     * Hash-indexed array holding all keys.
-     *
-     * @see #values
-     */
-    public long [] keys;
-
-    /**
-     * Hash-indexed array holding all values associated to the keys
-     * stored in {@link #keys}.
-     *
-     * @see #keys
-     */
-    public int [] counts;
-    public int [] fertilities;
-    public int [] postFertilities;
+    public int[] counts;
+    public int[] fertilities;
+    public int[] postFertilities;
 
     public int bigramTypeCount;
-
-    /**
-     * Information if an entry (slot) in the {@link #values} table is allocated
-     * or empty.
-     *
-     * @see #assigned
-     */
-    public boolean [] allocated;
-
-    /**
-     * Cached number of assigned slots in {@link #allocated}.
-     */
     public int assigned;
 
-    /**
-     * The load factor for this map (fraction of allocated slots
-     * before the buffers must be rehashed or reallocated).
-     */
-    public final float loadFactor = 0.75f;
-
-    /**
-     * Cached capacity threshold at which we must resize the buffers.
-     */
     private int resizeThreshold;
-
-    /**
-     * The most recent slot accessed in {@link #containsKey} (required for
-     * {@link #lget}).
-     *
-     * @see #containsKey
-     * @see #lget
-     */
     private int lastSlot;
 
-    /**
-     * Creates a hash map with the default capacity of {@value #DEFAULT_CAPACITY},
-     * load factor of {@value #DEFAULT_LOAD_FACTOR}.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     */
-    public BigramHashMap()
-    {
-        this(DEFAULT_CAPACITY);
+    public BigramCounter() {
+        allocateBuffers(DEFAULT_CAPACITY);
     }
 
-    /**
-     * Creates a hash map with the given initial capacity,
-     * load factor.
-     *
-     * <p>See class notes about hash distribution importance.</p>
-     *
-     * @param initialCapacity Initial capacity (greater than zero and automatically
-     *            rounded to the next power of two).
-     *
-     * @param loadFactor The load factor (greater than zero and smaller than 1).
-     */
-    public BigramHashMap(int initialCapacity)
-    {
-        initialCapacity = Math.max(initialCapacity, MIN_CAPACITY);
-
-        assert initialCapacity == DEFAULT_CAPACITY
-                : "Initial capacity not supported";
-
-        allocateBuffers(roundCapacity(initialCapacity));
-    }
-
-    public final void incrementCount(long key)
-    {
+    public final void incrementCount(long key) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
@@ -704,8 +513,7 @@ class BigramHashMap {
         postFertilities[slot] = 0;
     }
 
-    public final void incrementFertility(long key)
-    {
+    public final void incrementFertility(long key) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
@@ -729,8 +537,7 @@ class BigramHashMap {
         postFertilities[slot] = 0;
     }
 
-    public final void incrementPostFertility(long key)
-    {
+    public final void incrementPostFertility(long key) {
         if (assigned >= resizeThreshold)
             expandAndRehash();
 
@@ -754,13 +561,7 @@ class BigramHashMap {
         postFertilities[slot] = 1;
     }
 
-
-    /**
-     * Expand the internal storage buffers (capacity) or rehash current
-     * keys and values if there are a lot of deleted slots.
-     */
-    private void expandAndRehash()
-    {
+    private void expandAndRehash() {
         final long [] oldKeys = this.keys;
         final int [] oldCounts = this.counts;
         final int [] oldFertilities = this.fertilities;
@@ -770,10 +571,6 @@ class BigramHashMap {
         assert assigned >= resizeThreshold;
         allocateBuffers(nextCapacity(keys.length));
 
-        /*
-         * Rehash all assigned slots from the old hash table. Deleted
-         * slots are discarded.
-         */
         final int mask = allocated.length - 1;
         for (int i = 0; i < oldStates.length; i++)
         {
@@ -802,20 +599,10 @@ class BigramHashMap {
             }
         }
 
-        /*
-         * The number of assigned items does not change, the number of deleted
-         * items is zero since we have resized.
-         */
         lastSlot = -1;
     }
 
-    /**
-     * Allocate internal buffers for a given capacity.
-     *
-     * @param capacity New capacity (must be a power of two).
-     */
-    private void allocateBuffers(int capacity)
-    {
+    private void allocateBuffers(int capacity) {
         this.keys = new long [capacity];
         this.counts = new int [capacity];
         this.fertilities = new int [capacity];
@@ -825,8 +612,7 @@ class BigramHashMap {
         this.resizeThreshold = (int) (capacity * loadFactor);
     }
 
-    public int getCount(long key)
-    {
+    public int getCount(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
         while (allocated[slot])
@@ -840,8 +626,7 @@ class BigramHashMap {
         }
         return ((int) 0);
     }
-    public int getFertility(long key)
-    {
+    public int getFertility(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
         while (allocated[slot])
@@ -855,8 +640,7 @@ class BigramHashMap {
         }
         return ((int) 0);
     }
-    public int getPostFertility(long key)
-    {
+    public int getPostFertility(long key) {
         final int mask = allocated.length - 1;
         int slot = rehash(key) & mask;
         while (allocated[slot])
@@ -871,16 +655,14 @@ class BigramHashMap {
         return ((int) 0);
     }
 
-    public int lget()
-    {
+    public int lget() {
         assert lastSlot >= 0 : "Call containsKey() first.";
         assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
 
         return counts[lastSlot];
     }
 
-    public int lset(int key)
-    {
+    public int lset(int key) {
         assert lastSlot >= 0 : "Call containsKey() first.";
         assert allocated[lastSlot] : "Last call to exists did not have any associated value.";
 
@@ -889,85 +671,7 @@ class BigramHashMap {
         return previous;
     }
 
-    public boolean containsKey(long key)
-    {
-        final int mask = allocated.length - 1;
-        int slot = rehash(key) & mask;
-        while (allocated[slot])
-        {
-            if (((key) == (keys[slot])))
-            {
-                lastSlot = slot;
-                return true;
-            }
-            slot = (slot + 1) & mask;
-        }
-        lastSlot = -1;
-        return false;
-    }
-
-    /**
-     * Round the capacity to the next allowed value.
-     */
-    protected int roundCapacity(int requestedCapacity)
-    {
-        // Maximum positive integer that is a power of two.
-        if (requestedCapacity > (0x80000000 >>> 1))
-            return (0x80000000 >>> 1);
-
-        return Math.max(MIN_CAPACITY, requestedCapacity);
-    }
-
-    /**
-     * Return the next possible capacity, counting from the current buffers'
-     * size.
-     */
-    protected int nextCapacity(int current)
-    {
-        assert current > 0 && Long.bitCount(current) == 1
-                : "Capacity must be a power of two.";
-        assert ((current << 1) > 0)
-                : "Maximum capacity exceeded (" + (0x80000000 >>> 1) + ").";
-
-        if (current < MIN_CAPACITY / 2) current = MIN_CAPACITY / 2;
-        return current << 1;
-    }
-
-    public int size()
-    {
-        return assigned;
-    }
-
-    static int rehash(long k)
-    {
-        k ^= k >>> 33;
-        k *= 0xff51afd7ed558ccdL;
-        k ^= k >>> 33;
-        k *= 0xc4ceb9fe1a85ec53L;
-        k ^= k >>> 33;
-        return (int)k;
-    }
-
-    public String toString()
-    {
-        final StringBuilder buffer = new StringBuilder();
-        buffer.append("[");
-
-        boolean first = true;
-        for (int i = 0; i < allocated.length; i++)
-        {
-            if (!allocated[i]) continue;
-            if (!first) buffer.append(",\n");
-            buffer.append(keys[i]);
-            buffer.append("=>");
-            buffer.append(counts[i]);
-            buffer.append(", ");
-            buffer.append(fertilities[i]);
-            buffer.append(", ");
-            buffer.append(postFertilities[i]);
-            first = false;
-        }
-        buffer.append("]");
-        return buffer.toString();
+    protected String valuesAsString(int i) {
+        return counts[i] + ", " + fertilities[i] + ", " + postFertilities[i];
     }
 }
