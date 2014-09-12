@@ -121,6 +121,28 @@ class LanguageModel implements NgramLanguageModel {
                 unigrams[curr] += 1;
             }
         }
+        int b0 = 0, s0 = 0, b1 = 0, s1 = 0, b2 = 0, s2 = 0;
+        int limit = (1 << 16) - 1;
+        for (int i=0; i<bigrams.keys.length; i++) {
+            if (bigrams.keys[i] != Counter.EMPTY) {
+                if (bigrams.counts[i] < limit) {
+                    s0++;
+                } else {
+                    b0++;
+                }
+                if (bigrams.fertilities[i] < limit) {
+                    s1++;
+                } else {
+                    b1++;
+                }
+                if (bigrams.postFertilities[i] < limit) {
+                    s2++;
+                } else {
+                    b2++;
+                }
+            }
+        }
+        System.out.println(s0 + "," + b0 + "; " + s1 + "," + b1 + ", " + s2 + "," + b2);
     }
 
     static int max(int[] values) {
