@@ -144,7 +144,7 @@ class LanguageModel implements NgramLanguageModel {
         pUnigram /= (double)(bigrams.bigramTypeCount);
 
         if (order == 1) {
-            if (pUnigram == 0) throw new Error(logProbDump(Double.NEGATIVE_INFINITY, Arrays.copyOfRange(ngram, from, to)));
+            assert pUnigram != 0 : logProbDump(Double.NEGATIVE_INFINITY, Arrays.copyOfRange(ngram, from, to));
             double ret = Math.log(pUnigram);
             assert !(Double.isNaN(ret) || Double.isInfinite(ret)) && ret <= 0 : ret;
             return ret;
@@ -180,7 +180,7 @@ class LanguageModel implements NgramLanguageModel {
         int fertility2 = bigrams.getPostFertility(key);
         pTrigram += fertility2 == 0 ? 0 : D * fertility2 * pBigram;
 
-        int denominator = bigrams.getCount(key);
+        int denominator = bigrams.lastCount;
         if (denominator == 0) {
             // TODO: Backoff to actual bigram and not fertility bigram
             return Math.log(pBigram);
@@ -408,6 +408,8 @@ class BigramCounter extends Counter {
 
     private int resizeThreshold;
 
+    public int lastCount = 0;
+
     public BigramCounter() {
         allocateBuffers(DEFAULT_CAPACITY);
     }
@@ -547,11 +549,13 @@ class BigramCounter extends Counter {
         int slot = rehash(key) & mask;
         while (keys[slot] != EMPTY) {
             if (((key) == (keys[slot]))) {
+                lastCount = counts[slot] & 0xffff;
                 return postFertilities[slot] & 0xffff;
             }
 
             slot = (slot + 1) & mask;
         }
+        lastCount = (int)0;
         return ((int) 0);
     }
 
