@@ -21,6 +21,23 @@ public class SpeechRecognizerFactory {
    */
   public static SpeechRecognizer getRecognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
 
-     return null; // TODO Construct a speech recognizer implementation here
+     return new Recognizer(acousticModel, dict, lmDataPath);
   }
+}
+
+class Recognizer implements SpeechRecognizer {
+
+    public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
+
+    }
+
+    /**
+     * Decode a sequence of MFCCs and produce a sequence of lowercased words.
+     *
+     * @param acousticFeatures The sequence of MFCCs for this sentence with silences filtered out
+     * @return The recognized sequence of words
+     */
+    public List<String> recognize(List<float[]> acousticFeatures) {
+
+    }
 }
