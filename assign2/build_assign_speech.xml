@@ -1,0 +1,24 @@
+<project name="assign_speech" default="build" basedir=".">
+  <property name="name" location="assign_speech"/>
+  <property environment="env"/>
+
+  <target name="build">
+    <delete dir="build_assign_speech"/>
+    <mkdir dir="build_assign_speech"/>
+    <copy todir="build_assign_speech">
+    	<fileset dir=".">
+    		<include name="src/**"/>
+    	</fileset>
+    </copy>
+    <javac srcdir="build_assign_speech/src" debug="true" classpath="${name}.jar">
+      <compilerarg value="-Xlint:deprecation"/>
+      <include name="**/*.java"/>
+    </javac>
+    <jar destfile="${name}-submit.jar" basedir="build_assign_speech/src">
+	</jar>
+	<delete dir="build_assign_speech"/>
+	
+  </target>
+</project>
+                                 
+                                 
