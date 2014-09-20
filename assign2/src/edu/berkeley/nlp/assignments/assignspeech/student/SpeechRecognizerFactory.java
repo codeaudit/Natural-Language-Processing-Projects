@@ -4,8 +4,10 @@ import edu.berkeley.nlp.assignments.assignspeech.AcousticModel;
 import edu.berkeley.nlp.assignments.assignspeech.PronunciationDictionary;
 import edu.berkeley.nlp.assignments.assignspeech.SpeechRecognizer;
 import edu.berkeley.nlp.assignments.assignspeech.SubphoneWithContext;
+import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
 
 import java.util.*;
+import java.util.PriorityQueue;
 
 public class SpeechRecognizerFactory {
 
@@ -35,11 +37,12 @@ public class SpeechRecognizerFactory {
 
 class LexiconNode {
   HashMap<String, LexiconNode> children = new HashMap<String, LexiconNode>();
-  final String word;
+  final int word;
 
   LexiconNode();
 
   LexiconNode(PronunciationDictionary dict) {
+    StringIndexer indexer = EnglishWordIndexer.getIndexer();
     for (String word : dict.getContainedWords()) {
       for (List<List<String>> pronunciations : dict.getPronunciations(word)) {
         for (List<String> pronunciation : pronunciations) {
@@ -53,7 +56,7 @@ class LexiconNode {
             node = nextNode;
           }
           assert node.word == null;
-          node.word = word;
+          node.word = indexer.addAndGetIndex(word);
         }
       }
     }
@@ -65,6 +68,7 @@ class Recognizer implements SpeechRecognizer {
 
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
+  final static int BEAM_SIZE = 50;
 
   // static const String[] allPhonemes = ["M", "AH", "L", "P", "CH", "EH", "N", "IY", "R", "EY", "IH", "NG", "HH", "G", "T", "Z", "Y", "UW", "D", "SH", "V", "ER", "B", "S", "K", "UH", "OY", "F", "AY", "W", "OW", "AE", "JH", "AA", "TH", "AO", "AW", "DH", "ZH"];
 
@@ -73,16 +77,20 @@ class Recognizer implements SpeechRecognizer {
     this.dict = dict;
   }
 
-  class State {
+  class State implements Comparable {
     int prevWord;
     LexiconNode phoneme;
-    int subphone = 0;
+    byte subphone = 1;
 
     State(int prevWord) {
       this.prevWord = prevWord;
     }
 
     double probability;
+
+    compareTo(State o) {
+      return this.probability - o.probability;
+    }
   }
 
   /**
@@ -93,17 +101,28 @@ class Recognizer implements SpeechRecognizer {
    */
   public List<String> recognize(List<float[]> acousticFeatures) {
 
-    ArrayList<ArrayList<State>> beams = new ArrayList<ArrayList<State>>();
+    ArrayList<PriorityQueue<State>> beams = new ArrayList<PriorityQueue<State>>();
 
-    ArrayList<State> prevBeam, nextBeam = new ArrayList<State>();
+    PriorityQueue<State> prevBeam, nextBeam = new PriorityQueue<State>(BEAM_SIZE);
     for (float[] features : acousticFeatures) {
       prevBeam = nextBeam;
-      nextBeam = new ArrayList<State>();
+      nextBeam = new PriorityQueue<State>(BEAM_SIZE);
       for (State state : prevBeam) {
-        for (Map.Entry entry : state.phoneme.children.entrySet()) {
-          State newState = new State(state.prevWord);
 
+        // do a self loop
+
+        if (state.subphone == 3) {
+          for (Map.Entry entry : state.phoneme.children.entrySet()) {
+            State newState = new State(state.prevWord);
+            
+          }
+
+          if (state.phoneme.word != null) {
+            // move to next word
+          }
         }
+
+        // move to next subphone
       }
     }
 
