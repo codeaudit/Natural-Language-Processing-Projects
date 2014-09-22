@@ -43,27 +43,35 @@ class LexiconNode {
   String prevPhoneme = "";
   int word = -1;
 
+  int level;
+
   LexiconNode(String phoneme, String prevPhoneme) {
     this.phoneme = phoneme;
     this.prevPhoneme = prevPhoneme;
   };
 
   LexiconNode(PronunciationDictionary dict) {
+    this.level = 0;
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
     for (String word : dict.getContainedWords()) {
-
       List<List<String>> pronunciations = dict.getPronunciations(word);
+
+      LexiconNode node, nextNode;
       for (List<String> pronunciation : pronunciations) {
-        LexiconNode node = this, nextNode;
+        node = this;
         for (String phoneme : pronunciation) {
           nextNode = node.children.get(phoneme);
           if (nextNode == null) {
             nextNode = new LexiconNode(phoneme, node.phoneme);
-            children.put(phoneme, nextNode);
+            nextNode.level = node.level + 1;
+            node.children.put(phoneme, nextNode);
           }
           node = nextNode;
         }
-        assert node.word == -1 : indexer.get(node.word) + ", " + word;
+        assert node.word == -1 : indexer.get(node.word) + ", " + word + "\n"
+                + dict.getPronunciations(indexer.get(node.word)) + ";\n"
+                + dict.getPronunciations(word) + ";\n"
+                + node.level;
         node.word = indexer.addAndGetIndex(word);
       }
     }
