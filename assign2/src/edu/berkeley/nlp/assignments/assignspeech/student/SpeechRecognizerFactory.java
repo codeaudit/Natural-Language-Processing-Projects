@@ -5,8 +5,10 @@ import edu.berkeley.nlp.assignments.assignspeech.PronunciationDictionary;
 import edu.berkeley.nlp.assignments.assignspeech.SpeechRecognizer;
 import edu.berkeley.nlp.assignments.assignspeech.SubphoneWithContext;
 import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
+import edu.berkeley.nlp.util.StringIndexer;
 
 import java.util.*;
+import java.util.ArrayList;
 import java.util.PriorityQueue;
 
 public class SpeechRecognizerFactory {
@@ -37,9 +39,9 @@ public class SpeechRecognizerFactory {
 
 class LexiconNode {
   HashMap<String, LexiconNode> children = new HashMap<String, LexiconNode>();
-  final String phoneme = "";
-  final String prevPhoneme = "";
-  final int word;
+  String phoneme = "";
+  String prevPhoneme = "";
+  int word = -1;
 
   LexiconNode(String phoneme, String prevPhoneme) {
     this.phoneme = phoneme;
@@ -49,20 +51,20 @@ class LexiconNode {
   LexiconNode(PronunciationDictionary dict) {
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
     for (String word : dict.getContainedWords()) {
-      for (List<List<String>> pronunciations : dict.getPronunciations(word)) {
-        for (List<String> pronunciation : pronunciations) {
-          LexiconNode node = this, nextNode;
-          for (String phoneme : pronunciation) {
-            nextNode = node.children.get(phoneme);
-            if (nextNode == null) {
-              nextNode = new LexiconNode(phoneme, node.phoneme);
-              children.put(phoneme, nextNode);
-            }
-            node = nextNode;
+
+      List<List<String>> pronunciations = dict.getPronunciations(word);
+      for (List<String> pronunciation : pronunciations) {
+        LexiconNode node = this, nextNode;
+        for (String phoneme : pronunciation) {
+          nextNode = node.children.get(phoneme);
+          if (nextNode == null) {
+            nextNode = new LexiconNode(phoneme, node.phoneme);
+            children.put(phoneme, nextNode);
           }
-          assert node.word == null;
-          node.word = indexer.addAndGetIndex(word);
+          node = nextNode;
         }
+        assert node.word == -1 : indexer.get(node.word) + ", " + word;
+        node.word = indexer.addAndGetIndex(word);
       }
     }
   }
@@ -74,7 +76,7 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 50;
+  final static int BEAM_SIZE = 500;
 
   // static const String[] allPhonemes = ["M", "AH", "L", "P", "CH", "EH", "N", "IY", "R", "EY", "IH", "NG", "HH", "G", "T", "Z", "Y", "UW", "D", "SH", "V", "ER", "B", "S", "K", "UH", "OY", "F", "AY", "W", "OW", "AE", "JH", "AA", "TH", "AO", "AW", "DH", "ZH"];
 
@@ -86,10 +88,10 @@ class Recognizer implements SpeechRecognizer {
   }
 
   class State implements Comparable {
-    int prevWord;
+    int prevWord = -1;
     State prevState;
     LexiconNode phoneme;
-    byte subphone = 1;
+    int subphone = 1;
 
     State(State prevState, int prevWord) {
       this.prevState = prevState;
@@ -98,8 +100,12 @@ class Recognizer implements SpeechRecognizer {
 
     double probability;
 
-    int compareTo(State o) {
-      return this.probability - o.probability;
+
+    public int compareTo(Object o) {
+      double diff = this.probability - ((State)o).probability;
+      if (diff == 0) return 0;
+      if (diff < 0) return -1;
+      return 1;
     }
   }
 
@@ -117,43 +123,69 @@ class Recognizer implements SpeechRecognizer {
     for (float[] features : acousticFeatures) {
       prevBeam = nextBeam;
       nextBeam = new PriorityQueue<State>(BEAM_SIZE);
+
+      // Recombine states in prevBeam
+
       for (State state : prevBeam) {
 
         State newState = new State(state, state.prevWord);
         newState.phoneme = state.phoneme;
         newState.subphone = state.subphone;
         SubphoneWithContext subphone = new SubphoneWithContext(
-                state.phoneme, (int)state.subphone,
+                state.phoneme.phoneme, state.subphone,
                 state.subphone == 1 ? state.phoneme.prevPhoneme : "",
                 state.subphone == 3 ? "" : ""); // FIXMEEEE
         newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
         nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
 
         if (state.subphone == 3) {
-          for (Map.Entry entry : state.phoneme.children.entrySet()) {
+          for (Map.Entry<String, LexiconNode> entry : state.phoneme.children.entrySet()) {
             newState = new State(state, state.prevWord);
             newState.phoneme = entry.getValue();
-            subphone = new SubphoneWithContext(newState.phoneme, 1, state.phoneme.phoneme, "");
-            newState.probability += acousticModel.getLogProbability(subphone, features);
+            subphone = new SubphoneWithContext(newState.phoneme.phoneme, 1, state.phoneme.phoneme, "");
+            newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
             nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
           }
 
-          if (state.phoneme.word != null) {
-            // move to next word
+          if (state.phoneme.word != -1) {
+            for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
+              newState = new State(state, state.phoneme.word);
+              newState.phoneme = entry.getValue();
+              subphone = new SubphoneWithContext(newState.phoneme.phoneme, 1, "", "");
+              newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
+              nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
+            }
           }
         } else {
-          State newState = new State(state, state.prevWord);
+          newState = new State(state, state.prevWord);
           newState.phoneme = state.phoneme;
           newState.subphone = state.subphone + 1;
-          subphone = new SubphoneWithContext(newState.phoneme, newState.subphone, "", ""); // TODO
+          subphone = new SubphoneWithContext(newState.phoneme.phoneme, newState.subphone, "", ""); // TODO
           newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
           nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
         }
       }
     }
 
+    State best = nextBeam.poll();
+    assert best != null;
+    while (nextBeam.peek() != null) best = nextBeam.poll();
+
+    ArrayList<Integer> words = new ArrayList<Integer>();
+    int word = best.prevWord;
+    while (best.prevState != null) {
+      if (best.prevWord != word) {
+        word = best.prevWord;
+        words.add(word);
+      }
+      best = best.prevState;
+    }
+
+    StringIndexer indexer = EnglishWordIndexer.getIndexer();
     ArrayList<String> ret = new ArrayList<String>();
-    ret.add("lol");
+    for (int i = words.size() - 1; i <= 0; i--) {
+      ret.add(indexer.get(words.get(i)));
+    }
     return ret;
   }
 }
