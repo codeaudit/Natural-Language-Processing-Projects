@@ -86,8 +86,7 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 500;
-
-  // static const String[] allPhonemes = ["M", "AH", "L", "P", "CH", "EH", "N", "IY", "R", "EY", "IH", "NG", "HH", "G", "T", "Z", "Y", "UW", "D", "SH", "V", "ER", "B", "S", "K", "UH", "OY", "F", "AY", "W", "OW", "AE", "JH", "AA", "TH", "AO", "AW", "DH", "ZH"];
+  final static double WORD_BONUS = Math.log(1.2);
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
     lexicon = new LexiconNode(dict);
@@ -100,21 +99,88 @@ class Recognizer implements SpeechRecognizer {
     int prevWord = -1;
     State prevState;
     LexiconNode lexiconNode;
-    int subphone = 1;
+    SubphoneWithContext subphone;
+    double probability;
 
     State(State prevState, int prevWord) {
       this.prevState = prevState;
       this.prevWord = prevWord;
     }
 
-    double probability;
-
-
     public int compareTo(Object o) {
       double diff = this.probability - ((State)o).probability;
       if (diff == 0) return 0;
       if (diff < 0) return -1;
       return 1;
+    }
+
+    State selfLoop(float[] point) {
+      State newState = new State(this, this.prevWord);
+      newState.lexiconNode = this.lexiconNode;
+      newState.subphone = this.subphone;
+      newState.probability = this.probability + acousticModel.getLogProbability(this.subphone, point);
+      return newState;
+    }
+
+    State newWord(float[] point, int word, LexiconNode nextNode) {
+      assert this.subphone.getSubphonePosn() == 3;
+      State newState = new State(this, word);
+      newState.lexiconNode = nextNode;
+      newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
+      newState.probability = this.probability
+              + acousticModel.getLogProbability(newState.subphone, point)
+              + WORD_BONUS;
+      return newState;
+    }
+
+    State newPhone(float[] point, LexiconNode nextNode) {
+      assert this.subphone.getSubphonePosn() == 3;
+      State newState = new State(this, this.prevWord);
+      newState.lexiconNode = nextNode;
+      newState.subphone = new SubphoneWithContext(lexiconNode.phoneme, 1, this.lexiconNode.phoneme, "");
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
+      return newState;
+    }
+
+    State newSubphone(float[] point) {
+      State newState = new State(this, this.prevWord);
+      newState.lexiconNode = this.lexiconNode;
+      newState.subphone = new SubphoneWithContext(
+              newState.lexiconNode.phoneme,
+              this.subphone.getSubphonePosn() + 1,
+              "", "");
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
+      return newState;
+    }
+  }
+
+  class Beam implements Iterable<State> {
+    PriorityQueue<State> queue;
+    int size;
+
+    Beam(int size) {
+      queue = new PriorityQueue<State>(size);
+      this.size = size;
+    }
+
+    void relax(State state) {
+
+      // CHECK FOR DUPLICATES FIRST
+
+      queue.add(state);
+      if (queue.size() == size) queue.poll();
+    }
+
+    State poll() {
+      return queue.poll();
+    }
+
+    State peek() {
+      return queue.peek();
+    }
+
+    public Iterator<State> iterator() {
+      return queue.iterator();
     }
   }
 
@@ -126,55 +192,30 @@ class Recognizer implements SpeechRecognizer {
    */
   public List<String> recognize(List<float[]> acousticFeatures) {
 
-    ArrayList<PriorityQueue<State>> beams = new ArrayList<PriorityQueue<State>>(); 
-
-    PriorityQueue<State> prevBeam, nextBeam = new PriorityQueue<State>(BEAM_SIZE);
+    Beam prevBeam, nextBeam = new Beam(BEAM_SIZE);
 
     // fill nextBeam with init
 
     for (float[] features : acousticFeatures) {
       prevBeam = nextBeam;
-      nextBeam = new PriorityQueue<State>(BEAM_SIZE);
-
-      // Recombine states in prevBeam
+      nextBeam = new Beam(BEAM_SIZE);
 
       for (State state : prevBeam) {
 
-        State newState = new State(state, state.prevWord);
-        newState.lexiconNode = state.lexiconNode;
-        newState.subphone = state.subphone;
-        SubphoneWithContext subphone = new SubphoneWithContext(
-                state.lexiconNode.phoneme, state.subphone,
-                state.subphone == 1 ? state.lexiconNode.prevPhoneme : "",
-                state.subphone == 3 ? "" : ""); // FIXMEEEE
-        newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
-        nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
+        nextBeam.relax(state.selfLoop(features));
 
-        if (state.subphone == 3) {
+        if (state.subphone.getSubphonePosn() == 3) {
           for (Map.Entry<String, LexiconNode> entry : state.lexiconNode.children.entrySet()) {
-            newState = new State(state, state.prevWord);
-            newState.lexiconNode = entry.getValue();
-            subphone = new SubphoneWithContext(newState.lexiconNode.phoneme, 1, state.lexiconNode.phoneme, "");
-            newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
-            nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
+            nextBeam.relax(state.newPhone(features, entry.getValue()));
           }
 
           for (int word : state.lexiconNode.words) {
             for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
-              newState = new State(state, word);
-              newState.lexiconNode = entry.getValue();
-              subphone = new SubphoneWithContext(newState.lexiconNode.phoneme, 1, "", "");
-              newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
-              nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
+              nextBeam.relax(state.newWord(features, word, entry.getValue()));
             }
           }
         } else {
-          newState = new State(state, state.prevWord);
-          newState.lexiconNode = state.lexiconNode;
-          newState.subphone = state.subphone + 1;
-          subphone = new SubphoneWithContext(newState.lexiconNode.phoneme, newState.subphone, "", ""); // TODO
-          newState.probability = state.probability + acousticModel.getLogProbability(subphone, features);
-          nextBeam.add(newState); if (nextBeam.size() == BEAM_SIZE) nextBeam.poll();
+          nextBeam.relax(state.newSubphone(features));
         }
       }
     }
