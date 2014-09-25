@@ -1,10 +1,13 @@
 package edu.berkeley.nlp.assignments.assignspeech.student;
 
+import edu.berkeley.nlp.assignments.assign1.solutions.KneserNeyLmFactory;
 import edu.berkeley.nlp.assignments.assignspeech.AcousticModel;
 import edu.berkeley.nlp.assignments.assignspeech.PronunciationDictionary;
 import edu.berkeley.nlp.assignments.assignspeech.SpeechRecognizer;
 import edu.berkeley.nlp.assignments.assignspeech.SubphoneWithContext;
+import edu.berkeley.nlp.io.SentenceCollection;
 import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
+import edu.berkeley.nlp.langmodel.NgramLanguageModel;
 import edu.berkeley.nlp.util.StringIndexer;
 
 import java.util.*;
@@ -87,12 +90,17 @@ class Recognizer implements SpeechRecognizer {
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2000;
   final static double WORD_BONUS = Math.log(1.2);
+  final static double LM_BOOST = 3d;
+  static int[] ngram = new int[3];
+
+  NgramLanguageModel lm;
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
     lexicon = new LexiconNode(dict);
     this.dict = dict;
     this.acousticModel = acousticModel;
-
+    Iterable<List<String>> sents = SentenceCollection.Reader.readSentenceCollection(lmDataPath);
+    lm = KneserNeyLmFactory.newLanguageModel(sents, false);
   }
 
   class State implements Comparable {
@@ -132,11 +140,16 @@ class Recognizer implements SpeechRecognizer {
       probability = 0;
     }
 
+    double acousticsProbability(float[] point) {
+      if (!acousticModel.contains(this.subphone)) return Double.NEGATIVE_INFINITY;
+      return acousticModel.getLogProbability(this.subphone, point);
+    }
+
     State selfLoop(float[] point) {
       State newState = new State(this, this.prevWord);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = this.subphone;
-      newState.probability = this.probability + acousticModel.getLogProbability(this.subphone, point);
+      newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
 
@@ -146,8 +159,15 @@ class Recognizer implements SpeechRecognizer {
       newState.lexiconNode = nextNode;
       newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
       newState.probability = this.probability
-              + acousticModel.getLogProbability(newState.subphone, point)
+              + newState.acousticsProbability(point)
               + WORD_BONUS;
+      ngram[0] = this.prevWord;
+      ngram[1] = word;
+      if (prevWord != -1) {
+        newState.probability += lm.getNgramLogProbability(ngram, 0, 2) * LM_BOOST;
+      } else {
+        newState.probability += lm.getNgramLogProbability(ngram, 1, 2) * LM_BOOST;
+      }
       return newState;
     }
 
@@ -156,7 +176,7 @@ class Recognizer implements SpeechRecognizer {
       State newState = new State(this, this.prevWord);
       newState.lexiconNode = nextNode;
       newState.subphone = new SubphoneWithContext(lexiconNode.phoneme, 1, this.lexiconNode.phoneme, "");
-      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
+      newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
 
@@ -167,7 +187,7 @@ class Recognizer implements SpeechRecognizer {
               newState.lexiconNode.phoneme,
               this.subphone.getSubphonePosn() + 1,
               "", "");
-      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
+      newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
   }
