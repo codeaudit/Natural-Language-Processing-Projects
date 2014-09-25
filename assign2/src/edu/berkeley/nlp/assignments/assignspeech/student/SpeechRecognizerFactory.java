@@ -85,7 +85,7 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 500;
+  final static int BEAM_SIZE = 2000;
   final static double WORD_BONUS = Math.log(1.2);
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
@@ -102,6 +102,18 @@ class Recognizer implements SpeechRecognizer {
     SubphoneWithContext subphone;
     double probability;
 
+    public boolean equals(Object obj) {
+      if (obj == null || !(obj instanceof State)) return false;
+      State other = (State)obj;
+      return other.subphone.equals(this.subphone)
+              && other.prevWord == this.prevWord
+              && other.lexiconNode == this.lexiconNode;
+    }
+
+    public int hashCode() {
+      return this.subphone.hashCode() ^ (int)((long)this.prevWord * 0xff51afd7ed558ccdL) ^ this.lexiconNode.hashCode();
+    }
+
     State(State prevState, int prevWord) {
       this.prevState = prevState;
       this.prevWord = prevWord;
@@ -112,6 +124,12 @@ class Recognizer implements SpeechRecognizer {
       if (diff == 0) return 0;
       if (diff < 0) return -1;
       return 1;
+    }
+
+    State(LexiconNode entry) {
+      this.lexiconNode = entry;
+      this.subphone = new SubphoneWithContext(entry.phoneme, 1, "", "");
+      probability = 0;
     }
 
     State selfLoop(float[] point) {
@@ -156,6 +174,7 @@ class Recognizer implements SpeechRecognizer {
 
   class Beam implements Iterable<State> {
     PriorityQueue<State> queue;
+//    HashSet<State> states;
     int size;
 
     Beam(int size) {
@@ -165,7 +184,9 @@ class Recognizer implements SpeechRecognizer {
 
     void relax(State state) {
 
-      // CHECK FOR DUPLICATES FIRST
+//      if (states.contains(state)) {
+//        State oldState = states
+//      }
 
       queue.add(state);
       if (queue.size() == size) queue.poll();
@@ -175,8 +196,11 @@ class Recognizer implements SpeechRecognizer {
       return queue.poll();
     }
 
-    State peek() {
-      return queue.peek();
+    State max() {
+      State best = queue.poll();
+      assert best != null;
+      while (queue.peek() != null) best = queue.poll();
+      return best;
     }
 
     public Iterator<State> iterator() {
@@ -194,7 +218,9 @@ class Recognizer implements SpeechRecognizer {
 
     Beam prevBeam, nextBeam = new Beam(BEAM_SIZE);
 
-    // fill nextBeam with init
+    for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
+      nextBeam.relax(new State(entry.getValue()));
+    }
 
     for (float[] features : acousticFeatures) {
       prevBeam = nextBeam;
@@ -220,13 +246,12 @@ class Recognizer implements SpeechRecognizer {
       }
     }
 
-    State best = nextBeam.poll();
-    assert best != null;
-    while (nextBeam.peek() != null) best = nextBeam.poll();
-
+    State best = nextBeam.max();
     ArrayList<Integer> words = new ArrayList<Integer>();
     int word = best.prevWord;
-    while (best.prevState != null) {
+    assert word != -1;
+    words.add(word);
+    while (best.prevWord != -1) {
       if (best.prevWord != word) {
         word = best.prevWord;
         words.add(word);
@@ -236,7 +261,7 @@ class Recognizer implements SpeechRecognizer {
 
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
     ArrayList<String> ret = new ArrayList<String>();
-    for (int i = words.size() - 1; i <= 0; i--) {
+    for (int i = words.size() - 1; i >= 0; i--) {
       ret.add(indexer.get(words.get(i)));
     }
     return ret;
