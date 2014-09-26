@@ -89,7 +89,7 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2000;
-  final static double WORD_BONUS = Math.log(1.2);
+  final static double WORD_BONUS = Math.log(1.3);
   final static double LM_BOOST = 3d;
   static int[] ngram = new int[3];
 
