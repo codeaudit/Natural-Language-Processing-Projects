@@ -10,9 +10,9 @@ import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
 import edu.berkeley.nlp.langmodel.NgramLanguageModel;
 import edu.berkeley.nlp.util.StringIndexer;
 
+import java.lang.String;
 import java.util.*;
 import java.util.ArrayList;
-import java.util.PriorityQueue;
 
 public class SpeechRecognizerFactory {
 
@@ -43,42 +43,61 @@ public class SpeechRecognizerFactory {
 class LexiconNode {
   HashMap<String, LexiconNode> children = new HashMap<String, LexiconNode>();
   String phoneme = "";
-  String prevPhoneme = "";
+  LexiconNode prevNode;
   ArrayList<Integer> words;
 
-  int level;
+  int level; // TODO: Remove
 
-  LexiconNode(String phoneme, String prevPhoneme) {
+  LexiconNode(String phoneme, LexiconNode prevNode) {
     this.phoneme = phoneme;
-    this.prevPhoneme = prevPhoneme;
+    this.prevNode = prevNode;
     this.words = new ArrayList<Integer>();
   };
 
   LexiconNode(PronunciationDictionary dict) {
     this.level = 0;
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
+
+    ArrayList<String> skipped = new ArrayList<String>(); // TODO: Skip stuff
+
     for (String word : dict.getContainedWords()) {
       List<List<String>> pronunciations = dict.getPronunciations(word);
 
       LexiconNode node, nextNode;
       for (List<String> pronunciation : pronunciations) {
         node = this;
-        for (String phoneme : pronunciation) {
-          nextNode = node.children.get(phoneme);
+        for (String phoneme_ : pronunciation) {
+          nextNode = node.children.get(phoneme_);
           if (nextNode == null) {
-            nextNode = new LexiconNode(phoneme, node.phoneme);
+            nextNode = new LexiconNode(phoneme_, node);
             nextNode.level = node.level + 1;
-            node.children.put(phoneme, nextNode);
+            node.children.put(phoneme_, nextNode);
           }
           node = nextNode;
         }
-//        assert node.word == -1 : indexer.get(node.word) + ", " + word + "\n"
-//                + dict.getPronunciations(indexer.get(node.word)) + ";\n"
-//                + dict.getPronunciations(word) + ";\n"
-//                + node.level;
         node.words.add(indexer.addAndGetIndex(word));
       }
     }
+
+//    System.out.println("skipped = " + skipped);
+  }
+
+  public String toString() {
+    LinkedList<String> nodes = new LinkedList<String>();
+    LexiconNode curr = this;
+    while (curr.prevNode != null) {
+      nodes.addFirst(curr.phoneme);
+      curr = curr.prevNode;
+    }
+    nodes.addLast("<<");
+
+    curr = this;
+    while (curr.words.isEmpty()) {
+      curr = curr.children.values().iterator().next();
+      nodes.addLast(curr.phoneme);
+    }
+    StringIndexer indexer = EnglishWordIndexer.getIndexer();
+    return this.phoneme + ": " + nodes.toString() + " => " + indexer.get(curr.words.get(0));
   }
 }
 
@@ -88,8 +107,8 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 2000;
-  final static double WORD_BONUS = Math.log(1.2);
+  final static int BEAM_SIZE = 1500;
+  final static double WORD_BONUS = Math.log(3);
   final static double LM_BOOST = 3d;
   static int[] ngram = new int[3];
 
@@ -101,6 +120,7 @@ class Recognizer implements SpeechRecognizer {
     this.acousticModel = acousticModel;
     Iterable<List<String>> sents = SentenceCollection.Reader.readSentenceCollection(lmDataPath);
     lm = KneserNeyLmFactory.newLanguageModel(sents, false);
+    System.out.println("-------------------------------");
   }
 
   class State implements Comparable {
@@ -141,7 +161,13 @@ class Recognizer implements SpeechRecognizer {
     }
 
     double acousticsProbability(float[] point) {
-      if (!acousticModel.contains(this.subphone)) return Double.NEGATIVE_INFINITY;
+      if (!acousticModel.contains(this.subphone)) {
+        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
+          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
+        }
+        // System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
+        return Double.NEGATIVE_INFINITY;
+      }
       return acousticModel.getLogProbability(this.subphone, point);
     }
 
@@ -175,7 +201,7 @@ class Recognizer implements SpeechRecognizer {
       assert this.subphone.getSubphonePosn() == 3;
       State newState = new State(this, this.prevWord);
       newState.lexiconNode = nextNode;
-      newState.subphone = new SubphoneWithContext(lexiconNode.phoneme, 1, this.lexiconNode.phoneme, "");
+      newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, this.lexiconNode.phoneme, "");
       newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
@@ -242,9 +268,17 @@ class Recognizer implements SpeechRecognizer {
       nextBeam.relax(new State(entry.getValue()));
     }
 
+    int index = 0;
     for (float[] features : acousticFeatures) {
+      index++;
       prevBeam = nextBeam;
-      nextBeam = new Beam(BEAM_SIZE);
+
+      int diff = acousticFeatures.size() - index;
+      if (diff < 10) {
+        nextBeam = new Beam(BEAM_SIZE * 2);
+      } else {
+        nextBeam = new Beam(BEAM_SIZE);
+      }
 
       for (State state : prevBeam) {
 
@@ -269,7 +303,10 @@ class Recognizer implements SpeechRecognizer {
     State best = nextBeam.max();
     ArrayList<Integer> words = new ArrayList<Integer>();
     int word = best.prevWord;
-    assert word != -1;
+    System.out.println(best.lexiconNode);
+    if (word == -1) {
+      return new ArrayList<String>();
+    }
     words.add(word);
     while (best.prevWord != -1) {
       if (best.prevWord != word) {
