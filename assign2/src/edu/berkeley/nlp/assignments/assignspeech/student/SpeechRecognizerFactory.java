@@ -108,8 +108,10 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 1500;
-  final static double WORD_BONUS = Math.log(3);
+  final static double WORD_BONUS = Math.log(5);
+  final static double SUBPHONE_BONUS = Math.log(1.1);
   final static double LM_BOOST = 3d;
+  final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
   NgramLanguageModel lm;
@@ -189,11 +191,14 @@ class Recognizer implements SpeechRecognizer {
               + WORD_BONUS;
       ngram[0] = this.prevWord;
       ngram[1] = word;
+      double lmProb;
       if (prevWord != -1) {
-        newState.probability += lm.getNgramLogProbability(ngram, 0, 2) * LM_BOOST;
+        lmProb = lm.getNgramLogProbability(ngram, 0, 2);
       } else {
-        newState.probability += lm.getNgramLogProbability(ngram, 1, 2) * LM_BOOST;
+        lmProb = lm.getNgramLogProbability(ngram, 1, 2);
       }
+      assert lmProb > -50: "lmProb: " + lmProb + " [" + (ngram[0] == -1 ? "" : (indexer.get(ngram[0]) + ", ")) + indexer.get(ngram[1]) + "]";
+      newState.probability += lmProb * LM_BOOST;
       return newState;
     }
 
@@ -202,7 +207,7 @@ class Recognizer implements SpeechRecognizer {
       State newState = new State(this, this.prevWord);
       newState.lexiconNode = nextNode;
       newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, this.lexiconNode.phoneme, "");
-      newState.probability = this.probability + newState.acousticsProbability(point);
+      newState.probability = this.probability + newState.acousticsProbability(point) + SUBPHONE_BONUS;
       return newState;
     }
 
@@ -216,6 +221,9 @@ class Recognizer implements SpeechRecognizer {
       newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
+
+    // TODO: Another thingy here..
+
   }
 
   class Beam implements Iterable<State> {
@@ -316,7 +324,6 @@ class Recognizer implements SpeechRecognizer {
       best = best.prevState;
     }
 
-    StringIndexer indexer = EnglishWordIndexer.getIndexer();
     ArrayList<String> ret = new ArrayList<String>();
     for (int i = words.size() - 1; i >= 0; i--) {
       ret.add(indexer.get(words.get(i)));
