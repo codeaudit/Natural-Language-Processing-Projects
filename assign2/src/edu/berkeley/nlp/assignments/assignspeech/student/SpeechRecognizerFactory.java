@@ -105,8 +105,8 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.15);
-  final static double LM_BOOST = 3d;
+  final static double WORD_BONUS = Math.log(1.3);
+  final static double LM_BOOST = 4.5d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
@@ -181,9 +181,9 @@ class Recognizer implements SpeechRecognizer {
 
     double acousticsProbability(float[] point) {
       if (!acousticModel.contains(this.subphone)) {
-        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
-          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
-        }
+//        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
+//          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
+//        }
         // System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
         return Double.NEGATIVE_INFINITY;
       }
@@ -198,31 +198,16 @@ class Recognizer implements SpeechRecognizer {
       return newState;
     }
 
-    State newWord(float[] point, int word, LexiconNode nextNode) {
+    State newWord(float[] point, int word, LexiconNode nextNode, double lmProb) {
       assert this.subphone.getSubphonePosn() == 3;
       State newState = new State(this, word);
       newState.lexiconNode = nextNode;
       newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
-      newState.probability = this.probability
-              + newState.acousticsProbability(point)
-              + WORD_BONUS;
-      ngram[0] = prevPrevWord;
-      ngram[1] = prevWord;
-      ngram[2] = word;
-      double lmProb;
-      if (prevPrevWord != -1) {
-        lmProb = lm.getNgramLogProbability(ngram, 0, 3);
-      } else if (prevWord != -1) {
-        lmProb = lm.getNgramLogProbability(ngram, 1, 3);
-      } else {
-        lmProb = lm.getNgramLogProbability(ngram, 2, 3);
-      }
-      assert lmProb > -50: "lmProb: " + lmProb + " [" + (ngram[0] == -1 ? "" : (indexer.get(ngram[0]) + ", ")) + indexer.get(ngram[1]) + "]";
-      newState.probability += lmProb * LM_BOOST;
+      newState.probability = this.probability + newState.acousticsProbability(point) + lmProb;
       return newState;
     }
 
-    State trans1_2(float[] point) { // TODO: Smear LMh
+    State trans1_2(float[] point) { // TODO: Smear LM
       assert this.subphone.getSubphonePosn() == 1;
       State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
@@ -371,8 +356,26 @@ class Recognizer implements SpeechRecognizer {
             } else {
               assert state.lexiconNode.words.size() != 0;
               for (int word : state.lexiconNode.words) {
+                ngram[0] = state.prevPrevWord;
+                ngram[1] = state.prevWord;
+                ngram[2] = word;
+                double lmProb;
+                if (ngram[0] != -1) {
+                  lmProb = lm.getNgramLogProbability(ngram, 0, 3);
+                } else if (ngram[1] != -1) {
+                  lmProb = lm.getNgramLogProbability(ngram, 1, 3);
+                } else {
+                  lmProb = lm.getNgramLogProbability(ngram, 2, 3);
+                }
+//                if (lmProb > -2) {
+//                  System.out.println("lmProb: " + lmProb + " ["
+//                          + (ngram[0] == -1 ? "" : (indexer.get(ngram[0]) + ", "))
+//                          + (ngram[1] == -1 ? "" : (indexer.get(ngram[1]) + ", "))
+//                          + indexer.get(ngram[2]) + "]");
+//                }
+                lmProb = lmProb * LM_BOOST + WORD_BONUS;
                 for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
-                  nextBeam.relax(state.newWord(features, word, entry.getValue()));
+                  nextBeam.relax(state.newWord(features, word, entry.getValue(), lmProb));
                 }
               }
             }
