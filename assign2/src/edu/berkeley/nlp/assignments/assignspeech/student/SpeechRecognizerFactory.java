@@ -31,12 +31,13 @@ public class SpeechRecognizerFactory {
   }
 }
 
-class LexiconNode {
+class LexiconNode implements Comparable {
   HashMap<String, LexiconNode> children = new HashMap<String, LexiconNode>();
   String phoneme = "";
   LexiconNode prevNode;
   ArrayList<Integer> words;
   double probability = Double.NEGATIVE_INFINITY;
+  static StringIndexer indexer = EnglishWordIndexer.getIndexer();
 
   LexiconNode(String phoneme, LexiconNode prevNode) {
     this.phoneme = phoneme;
@@ -100,6 +101,21 @@ class LexiconNode {
     System.out.println("Words in Lexicon: " + wordCount);
   }
 
+  String bestGuess() {
+    LexiconNode curr = this;
+    while (curr.words.isEmpty()) {
+      curr = Collections.max(curr.children.values());
+    }
+    return indexer.get(curr.words.get(0));
+  }
+
+  public int compareTo(Object o) {
+    double diff = this.probability - ((LexiconNode)o).probability;
+    if (diff == 0) return 0;
+    if (diff < 0) return -1;
+    return 1;
+  }
+
   public String toString() {
     LinkedList<String> nodes = new LinkedList<String>();
     LexiconNode curr = this;
@@ -111,10 +127,9 @@ class LexiconNode {
 
     curr = this;
     while (curr.words.isEmpty()) {
-      curr = curr.children.values().iterator().next();
+      curr = Collections.max(curr.children.values());
       nodes.addLast(curr.phoneme);
     }
-    StringIndexer indexer = EnglishWordIndexer.getIndexer();
     return this.phoneme + ": " + nodes.toString() + " => " + indexer.get(curr.words.get(0));
   }
 }
@@ -124,7 +139,7 @@ class Recognizer implements SpeechRecognizer {
 
   final LexiconNode lexicon;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 256;
+  final static int BEAM_SIZE = 512;
   final static double WORD_BONUS = Math.log(1.1);
   final static double WIP_MULTIPLIER = 10d;
   final static double LM_BOOST = 8d;
@@ -436,7 +451,8 @@ class Recognizer implements SpeechRecognizer {
     int word = best.prevWord;
     // System.out.println(best.lexiconNode);
     if (word == -1) {
-      return new ArrayList<String>();
+      ret.add(best.lexiconNode.bestGuess());
+      return ret;
     }
     words.add(word);
     while (best.prevWord != -1) {
