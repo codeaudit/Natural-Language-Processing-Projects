@@ -127,8 +127,8 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.3);
-  final static double LM_BOOST = 5d;
+  final static double WORD_BONUS = Math.log(1.2);
+  final static double LM_BOOST = 8d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
@@ -301,7 +301,7 @@ class Recognizer implements SpeechRecognizer {
       }
     }
 
-    void bubbleDown(int i) {
+    private void bubbleDown(int i) {
       State tmp = heap[i];
       hash.remove(tmp);
 
@@ -330,6 +330,11 @@ class Recognizer implements SpeechRecognizer {
         }
       }
       return max;
+    }
+
+    double minProb() {
+      if (size == 0) return Double.NEGATIVE_INFINITY;
+      return heap[1].probability;
     }
   }
 
@@ -396,15 +401,16 @@ class Recognizer implements SpeechRecognizer {
 //                          + indexer.get(ngram[2]) + "]");
 //                }
                 lmProb = lmProb * LM_BOOST + WORD_BONUS;
-                for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
-                  nextBeam.relax(state.newWord(features, word, entry.getValue(), lmProb));
+
+                for (LexiconNode nextNode : lexicon.children.values()) {
+                  nextBeam.relax(state.newWord(features, word, nextNode, lmProb));
                 }
               }
             }
             break;
           case 2:
-            for (Map.Entry<String, LexiconNode> entry : state.lexiconNode.children.entrySet()) {
-              nextBeam.relax(state.trans2_3(features, entry.getValue()));
+            for (LexiconNode nextNode : state.lexiconNode.children.values()) {
+              nextBeam.relax(state.trans2_3(features, nextNode));
             }
             if (state.lexiconNode.words.size() != 0) {
               nextBeam.relax(state.trans2_3(features, null));
