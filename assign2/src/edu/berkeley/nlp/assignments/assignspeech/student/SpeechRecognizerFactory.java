@@ -258,10 +258,7 @@ class Recognizer implements SpeechRecognizer {
     }
 
     State max() {
-      State best = queue.poll();
-      assert best != null;
-      while (queue.peek() != null) best = queue.poll();
-      return best;
+      return Collections.max(queue);
     }
 
     public Iterator<State> iterator() {
@@ -287,6 +284,10 @@ class Recognizer implements SpeechRecognizer {
     for (float[] features : acousticFeatures) {
       index++;
       prevBeam = nextBeam;
+
+      if (index % 10 == 9) {
+        System.out.println(getPrediction(nextBeam));
+      }
 
       int diff = acousticFeatures.size() - index;
       if (diff < 10) {
@@ -328,7 +329,11 @@ class Recognizer implements SpeechRecognizer {
       }
     }
 
-    State best = nextBeam.max();
+    return getPrediction(nextBeam);
+  }
+
+  static List<String> getPrediction(Beam beam) {
+    State best = beam.max();
     ArrayList<Integer> words = new ArrayList<Integer>();
     int word = best.prevWord;
     System.out.println(best.lexiconNode);
