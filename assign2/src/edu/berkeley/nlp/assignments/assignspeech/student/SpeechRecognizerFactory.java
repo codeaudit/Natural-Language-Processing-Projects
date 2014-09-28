@@ -12,7 +12,9 @@ import edu.berkeley.nlp.util.StringIndexer;
 
 import java.lang.Double;
 import java.lang.Integer;
+import java.lang.String;
 import java.util.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class SpeechRecognizerFactory {
@@ -127,12 +129,14 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.2);
-  final static double LM_BOOST = 8d;
+  final static double WORD_BONUS = Math.log(1.15);
+  final static double WIP_MULTIPLIER = 20d;
+  final static double LM_BOOST = 7d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
   NgramLanguageModel lm;
+  int START_SYMBOL;
   State MIN_STATE = new State(Double.NEGATIVE_INFINITY);
   State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 
@@ -142,6 +146,7 @@ class Recognizer implements SpeechRecognizer {
     this.acousticModel = acousticModel;
     Iterable<List<String>> sents = SentenceCollection.Reader.readSentenceCollection(lmDataPath);
     lm = KneserNeyLmFactory.newLanguageModel(sents, false);
+    START_SYMBOL = indexer.indexOf("<s>");
     System.out.println("-------------------------------");
   }
 
@@ -357,10 +362,10 @@ class Recognizer implements SpeechRecognizer {
       index++;
       prevBeam = nextBeam;
 
-//      int PRINT_EVERY = 5;
-//      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
-//        System.out.println(getPrediction(nextBeam));
-//      }
+      int PRINT_EVERY = 2;
+      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
+        System.out.println(getPrediction(nextBeam));
+      }
 
       int diff = acousticFeatures.size() - index;
       if (diff < 10) {
@@ -390,9 +395,11 @@ class Recognizer implements SpeechRecognizer {
                 if (ngram[0] != -1) {
                   lmProb = lm.getNgramLogProbability(ngram, 0, 3);
                 } else if (ngram[1] != -1) {
-                  lmProb = lm.getNgramLogProbability(ngram, 1, 3);
+                  ngram[0] = START_SYMBOL;
+                  lmProb = lm.getNgramLogProbability(ngram, 0, 3);
                 } else {
-                  lmProb = lm.getNgramLogProbability(ngram, 2, 3);
+                  ngram[1] = START_SYMBOL;
+                  lmProb = lm.getNgramLogProbability(ngram, 1, 3);
                 }
 //                if (lmProb > -2) {
 //                  System.out.println("lmProb: " + lmProb + " ["
@@ -400,7 +407,7 @@ class Recognizer implements SpeechRecognizer {
 //                          + (ngram[1] == -1 ? "" : (indexer.get(ngram[1]) + ", "))
 //                          + indexer.get(ngram[2]) + "]");
 //                }
-                lmProb = lmProb * LM_BOOST + WORD_BONUS;
+                lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.1d), 1d));
 
                 for (LexiconNode nextNode : lexicon.children.values()) {
                   nextBeam.relax(state.newWord(features, word, nextNode, lmProb));
@@ -427,11 +434,13 @@ class Recognizer implements SpeechRecognizer {
     return getPrediction(nextBeam);
   }
 
-  static List<String> getPrediction(Beam beam) {
+  List<String> getPrediction(Beam beam) {
     State best = beam.max();
     ArrayList<Integer> words = new ArrayList<Integer>();
+    ArrayList<String> ret = new ArrayList<String>();
+
     int word = best.prevWord;
-//    System.out.println(best.lexiconNode);
+    System.out.println(best.lexiconNode);
     if (word == -1) {
       return new ArrayList<String>();
     }
@@ -444,7 +453,6 @@ class Recognizer implements SpeechRecognizer {
       best = best.prevState;
     }
 
-    ArrayList<String> ret = new ArrayList<String>();
     for (int i = words.size() - 1; i >= 0; i--) {
       ret.add(indexer.get(words.get(i)));
     }
