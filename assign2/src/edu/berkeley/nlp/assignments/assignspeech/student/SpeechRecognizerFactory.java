@@ -10,12 +10,7 @@ import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
 import edu.berkeley.nlp.langmodel.NgramLanguageModel;
 import edu.berkeley.nlp.util.StringIndexer;
 
-import java.lang.Double;
-import java.lang.Integer;
-import java.lang.String;
 import java.util.*;
-import java.util.ArrayList;
-import java.util.HashMap;
 
 public class SpeechRecognizerFactory {
 
@@ -32,15 +27,8 @@ public class SpeechRecognizerFactory {
    * @return An implementation of the SpeechRecognizer interface
    */
   public static SpeechRecognizer getRecognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
-
     return new Recognizer(acousticModel, dict, lmDataPath);
   }
-
-
-  public static void main(String[] args) {
-
-  }
-
 }
 
 class LexiconNode {
@@ -48,6 +36,7 @@ class LexiconNode {
   String phoneme = "";
   LexiconNode prevNode;
   ArrayList<Integer> words;
+  double probability = 0;
 
   LexiconNode(String phoneme, LexiconNode prevNode) {
     this.phoneme = phoneme;
@@ -128,10 +117,10 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 512;
-  final static double WORD_BONUS = Math.log(1.12);
+  final static int BEAM_SIZE = 2048;
+  final static double WORD_BONUS = Math.log(1.1);
   final static double WIP_MULTIPLIER = 10d;
-  final static double LM_BOOST = 7d;
+  final static double LM_BOOST = 8d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
@@ -166,6 +155,7 @@ class Recognizer implements SpeechRecognizer {
       State other = (State)obj;
       return other.subphone.equals(this.subphone)
               && other.prevWord == this.prevWord
+              && other.prevPrevWord == this.prevPrevWord
               && other.lexiconNode == this.lexiconNode;
     }
 
@@ -174,7 +164,9 @@ class Recognizer implements SpeechRecognizer {
         return hashCache;
       } else {
         hashCacheNull = false;
-        this.hashCache = this.subphone.hashCode() ^ (int)((long)this.prevWord * 0xff51afd7ed558ccdL) ^ this.lexiconNode.hashCode();
+        this.hashCache = this.subphone.hashCode()
+                ^ (int)(((long)(this.prevWord << 32) + this.prevPrevWord) * 0xff51afd7ed558ccdL)
+                ^ this.lexiconNode.hashCode();
         return this.hashCache;
       }
     }
