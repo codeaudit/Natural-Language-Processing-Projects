@@ -202,16 +202,8 @@ class Recognizer implements SpeechRecognizer {
       return newState;
     }
 
-    State newPhone(float[] point, LexiconNode nextNode) {
-      assert this.subphone.getSubphonePosn() == 3;
-      State newState = new State(this, this.prevWord);
-      newState.lexiconNode = nextNode;
-      newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, this.lexiconNode.phoneme, "");
-      newState.probability = this.probability + newState.acousticsProbability(point) + SUBPHONE_BONUS;
-      return newState;
-    }
-
-    State newSubphone(float[] point) {
+    State trans1_2(float[] point) {
+      assert this.subphone.getSubphonePosn() == 1;
       State newState = new State(this, this.prevWord);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = new SubphoneWithContext(
@@ -222,8 +214,23 @@ class Recognizer implements SpeechRecognizer {
       return newState;
     }
 
-    // TODO: Another thingy here..
+    State trans2_3(float[] point, LexiconNode nextNode) {
+      assert this.subphone.getSubphonePosn() == 2;
+      State newState = new State(this, this.prevWord);
+      newState.lexiconNode = nextNode == null ? this.lexiconNode : nextNode;
+      newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 3, "", nextNode == null ? "" : nextNode.phoneme);
+      newState.probability = this.probability + newState.acousticsProbability(point);
+      return newState;
+    }
 
+    State trans3_1(float[] point) {
+      assert this.subphone.getSubphonePosn() == 3;
+      State newState = new State(this, this.prevWord);
+      newState.lexiconNode = this.lexiconNode;
+      newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 1, this.lexiconNode.prevNode.phoneme, "");
+      newState.probability = this.probability + newState.acousticsProbability(point) + SUBPHONE_BONUS;
+      return newState;
+    }
   }
 
   class Beam implements Iterable<State> {
@@ -292,18 +299,31 @@ class Recognizer implements SpeechRecognizer {
 
         nextBeam.relax(state.selfLoop(features));
 
-        if (state.subphone.getSubphonePosn() == 3) {
-          for (Map.Entry<String, LexiconNode> entry : state.lexiconNode.children.entrySet()) {
-            nextBeam.relax(state.newPhone(features, entry.getValue()));
-          }
-
-          for (int word : state.lexiconNode.words) {
-            for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
-              nextBeam.relax(state.newWord(features, word, entry.getValue()));
+        switch (state.subphone.getSubphonePosn()) {
+          case 3:
+            if (state.subphone.getForwardContext() != "") {
+              nextBeam.relax(state.trans3_1(features));
+            } else {
+              assert state.lexiconNode.words.size() != 0;
+              for (int word : state.lexiconNode.words) {
+                for (Map.Entry<String, LexiconNode> entry : lexicon.children.entrySet()) {
+                  nextBeam.relax(state.newWord(features, word, entry.getValue()));
+                }
+              }
             }
-          }
-        } else {
-          nextBeam.relax(state.newSubphone(features));
+            break;
+          case 2:
+            for (Map.Entry<String, LexiconNode> entry : state.lexiconNode.children.entrySet()) {
+              nextBeam.relax(state.trans2_3(features, entry.getValue()));
+            }
+            if (state.lexiconNode.words.size() != 0) {
+              nextBeam.relax(state.trans2_3(features, null));
+            }
+            break;
+          case 1:
+            nextBeam.relax(state.trans1_2(features));
+            break;
+          default: assert false;
         }
       }
     }
