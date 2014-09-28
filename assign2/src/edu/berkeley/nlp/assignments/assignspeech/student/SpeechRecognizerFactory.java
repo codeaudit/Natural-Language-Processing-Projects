@@ -129,14 +129,14 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.15);
-  final static double WIP_MULTIPLIER = 20d;
+  final static double WORD_BONUS = Math.log(1.12);
+  final static double WIP_MULTIPLIER = 50d;
   final static double LM_BOOST = 7d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
   NgramLanguageModel lm;
-  int START_SYMBOL;
+  int START_SYMBOL; // TODO: TEST THIS IS THIS GOOD???
   State MIN_STATE = new State(Double.NEGATIVE_INFINITY);
   State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 
@@ -222,15 +222,6 @@ class Recognizer implements SpeechRecognizer {
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = this.subphone;
       newState.probability = this.probability + newState.acousticsProbability(point);
-      return newState;
-    }
-
-    State newWord(float[] point, int word, LexiconNode nextNode, double lmProb) {
-      assert this.subphone.getSubphonePosn() == 3;
-      State newState = new State(this, word);
-      newState.lexiconNode = nextNode;
-      newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
-      newState.probability = this.probability + newState.acousticsProbability(point) + lmProb;
       return newState;
     }
 
@@ -386,6 +377,8 @@ class Recognizer implements SpeechRecognizer {
             if (state.subphone.getForwardContext() != "") {
               nextBeam.relax(state.trans3_1(features));
             } else {
+
+              // New Word
               assert state.lexiconNode.words.size() != 0;
               for (int word : state.lexiconNode.words) {
                 ngram[0] = state.prevPrevWord;
@@ -407,12 +400,19 @@ class Recognizer implements SpeechRecognizer {
 //                          + (ngram[1] == -1 ? "" : (indexer.get(ngram[1]) + ", "))
 //                          + indexer.get(ngram[2]) + "]");
 //                }
-                lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.1d), 1d));
-
+                lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.05d), 1d));
+                lmProb += state.probability;
+                if (lmProb < nextBeam.minProb()) continue;
                 for (LexiconNode nextNode : lexicon.children.values()) {
-                  nextBeam.relax(state.newWord(features, word, nextNode, lmProb));
+                  assert state.subphone.getSubphonePosn() == 3;
+                  State newState = new State(state, word);
+                  newState.lexiconNode = nextNode;
+                  newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
+                  newState.probability = newState.acousticsProbability(features) + lmProb;
+                  nextBeam.relax(newState);
                 }
               }
+
             }
             break;
           case 2:
