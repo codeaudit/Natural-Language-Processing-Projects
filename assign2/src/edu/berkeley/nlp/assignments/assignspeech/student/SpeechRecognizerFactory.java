@@ -10,9 +10,10 @@ import edu.berkeley.nlp.langmodel.EnglishWordIndexer;
 import edu.berkeley.nlp.langmodel.NgramLanguageModel;
 import edu.berkeley.nlp.util.StringIndexer;
 
-import java.lang.String;
+import java.lang.Double;
+import java.lang.Integer;
 import java.util.*;
-import java.util.ArrayList;
+import java.util.HashMap;
 
 public class SpeechRecognizerFactory {
 
@@ -107,14 +108,16 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 1500;
-  final static double WORD_BONUS = Math.log(5);
-  final static double SUBPHONE_BONUS = Math.log(1.1);
+  final static int BEAM_SIZE = 2048;
+  final static double WORD_BONUS = Math.log(1.3);
+  final static double SUBPHONE_BONUS = Math.log(1.0);
   final static double LM_BOOST = 3d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
   NgramLanguageModel lm;
+  State MIN_STATE = new State(Double.NEGATIVE_INFINITY);
+  State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
     lexicon = new LexiconNode(dict);
@@ -126,6 +129,9 @@ class Recognizer implements SpeechRecognizer {
   }
 
   class State implements Comparable {
+    int hashCache;
+    boolean hashCacheNull = true;
+
     int prevWord = -1;
     State prevState;
     LexiconNode lexiconNode;
@@ -141,9 +147,18 @@ class Recognizer implements SpeechRecognizer {
     }
 
     public int hashCode() {
-      return this.subphone.hashCode() ^ (int)((long)this.prevWord * 0xff51afd7ed558ccdL) ^ this.lexiconNode.hashCode();
+      if (!hashCacheNull) {
+        return hashCache;
+      } else {
+        hashCacheNull = false;
+        this.hashCache = this.subphone.hashCode() ^ (int)((long)this.prevWord * 0xff51afd7ed558ccdL) ^ this.lexiconNode.hashCode();
+        return this.hashCache;
+      }
     }
 
+    State(double probability) {
+      this.probability = probability;
+    }
     State(State prevState, int prevWord) {
       this.prevState = prevState;
       this.prevWord = prevWord;
@@ -233,36 +248,76 @@ class Recognizer implements SpeechRecognizer {
     }
   }
 
-  class Beam implements Iterable<State> {
-    PriorityQueue<State> queue;
-//    HashSet<State> states;
+  class Beam {
+    State[] heap;
     int size;
+    int heapMaxSize;
+    HashMap<State, Integer> hash;
 
-    Beam(int size) {
-      queue = new PriorityQueue<State>(size);
-      this.size = size;
+    Beam(int maxSize) {
+      heapMaxSize = maxSize;
+      heap = new State[heapMaxSize];
+      size = 0;
+      hash = new HashMap<State, Integer>((int)(heapMaxSize * 1.5f));
     }
 
     void relax(State state) {
-
-//      if (states.contains(state)) {
-//        State oldState = states
-//      }
-
-      queue.add(state);
-      if (queue.size() == size) queue.poll();
+      Integer copyIndex = hash.get(state);
+      if (copyIndex != null) {
+        assert heap[copyIndex].equals(state) : copyIndex + ":" + hash.get(state)
+                + "_" + heap[copyIndex].hashCode() + ":" + state.hashCode();
+        if (heap[copyIndex].probability >= state.probability) return;
+        heap[copyIndex].probability = state.probability;
+        bubbleDown(copyIndex);
+      } else {
+        if (size == heapMaxSize - 1) {
+          hash.remove(heap[1]);
+          heap[1] = heap[size];
+          hash.put(heap[1], new Integer(1));
+          heap[size] = MAX_STATE;
+          bubbleDown(1);
+        } else {
+          size++;
+        }
+        int pos = size;
+        for (; pos > 1 && state.probability < heap[pos/2].probability; pos = pos/2) {
+          heap[pos] = heap[pos/2];
+          hash.put(heap[pos], new Integer(pos));
+        }
+        heap[pos] = state;
+        hash.put(state, new Integer(pos));
+      }
     }
 
-    State poll() {
-      return queue.poll();
+    void bubbleDown(int i) {
+      State tmp = heap[i];
+      hash.remove(tmp);
+
+      while (i * 2 <= size) {
+        int child = i * 2;
+        if (child != size && heap[child].probability > heap[child+1].probability) {
+          child++;
+        }
+        if (tmp.probability > heap[child].probability) {
+          heap[i] = heap[child];
+          hash.put(heap[i], new Integer(i));
+        } else {
+          break;
+        }
+        i = child;
+      }
+      heap[i] = tmp;
+      hash.put(tmp, new Integer(i));
     }
 
     State max() {
-      return Collections.max(queue);
-    }
-
-    public Iterator<State> iterator() {
-      return queue.iterator();
+      State max = MIN_STATE;
+      for ( int i = 1; i <= size; i++) {
+        if ( heap[i].probability > max.probability) {
+          max = heap[i];
+        }
+      }
+      return max;
     }
   }
 
@@ -285,7 +340,8 @@ class Recognizer implements SpeechRecognizer {
       index++;
       prevBeam = nextBeam;
 
-      if (index % 10 == 9) {
+      int PRINT_EVERY = 5;
+      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
         System.out.println(getPrediction(nextBeam));
       }
 
@@ -296,7 +352,10 @@ class Recognizer implements SpeechRecognizer {
         nextBeam = new Beam(BEAM_SIZE);
       }
 
-      for (State state : prevBeam) {
+      int stateIndex = 0;
+      for (State state : prevBeam.heap) {
+        if (stateIndex++ == 0) continue;
+        if (stateIndex > prevBeam.size) break;
 
         nextBeam.relax(state.selfLoop(features));
 
