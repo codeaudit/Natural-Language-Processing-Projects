@@ -128,9 +128,9 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 2048;
+  final static int BEAM_SIZE = 1024;
   final static double WORD_BONUS = Math.log(1.12);
-  final static double WIP_MULTIPLIER = 50d;
+  final static double WIP_MULTIPLIER = 10d;
   final static double LM_BOOST = 7d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
@@ -207,13 +207,13 @@ class Recognizer implements SpeechRecognizer {
     }
 
     double acousticsProbability(float[] point) {
-      if (!acousticModel.contains(this.subphone)) {
-//        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
-//          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
-//        }
-        System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
-        return Double.NEGATIVE_INFINITY;
-      }
+//      if (!acousticModel.contains(this.subphone)) {
+////        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
+////          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
+////        }
+//        System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
+//        return Double.NEGATIVE_INFINITY;
+//      }
       return acousticModel.getLogProbability(this.subphone, point);
     }
 
