@@ -105,7 +105,7 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.2);
+  final static double WORD_BONUS = Math.log(1.15);
   final static double LM_BOOST = 3d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
@@ -345,10 +345,10 @@ class Recognizer implements SpeechRecognizer {
       index++;
       prevBeam = nextBeam;
 
-      int PRINT_EVERY = 5;
-      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
-        System.out.println(getPrediction(nextBeam));
-      }
+//      int PRINT_EVERY = 5;
+//      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
+//        System.out.println(getPrediction(nextBeam));
+//      }
 
       int diff = acousticFeatures.size() - index;
       if (diff < 10) {
@@ -400,7 +400,7 @@ class Recognizer implements SpeechRecognizer {
     State best = beam.max();
     ArrayList<Integer> words = new ArrayList<Integer>();
     int word = best.prevWord;
-    System.out.println(best.lexiconNode);
+//    System.out.println(best.lexiconNode);
     if (word == -1) {
       return new ArrayList<String>();
     }
