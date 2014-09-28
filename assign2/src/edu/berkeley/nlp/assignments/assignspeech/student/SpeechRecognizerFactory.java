@@ -53,30 +53,52 @@ class LexiconNode {
     this.words = new ArrayList<Integer>();
   };
 
-  LexiconNode(PronunciationDictionary dict) {
+  LexiconNode(PronunciationDictionary dict, AcousticModel acousticModel) {
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
 
     ArrayList<String> skipped = new ArrayList<String>(); // TODO: Skip stuff
 
+    int index = 0;
     for (String word : dict.getContainedWords()) {
       List<List<String>> pronunciations = dict.getPronunciations(word);
 
       LexiconNode node, nextNode;
+      SubphoneWithContext subphone;
+      int p = 0;
+      outer:
       for (List<String> pronunciation : pronunciations) {
+
+        String prev = "";
+        for (String phoneme : pronunciation) {
+          if (!prev.equals("")) {
+            subphone = new SubphoneWithContext(prev, 3, "", phoneme);
+            if (!acousticModel.contains(subphone)) continue outer;
+          }
+          subphone = new SubphoneWithContext(phoneme, 1, prev, "");
+          if (!acousticModel.contains(subphone)) continue outer;
+          subphone = new SubphoneWithContext(phoneme, 2, "", "");
+          if (!acousticModel.contains(subphone)) continue outer;
+          prev = phoneme;
+        }
+        subphone = new SubphoneWithContext(prev, 3, "", "");
+        if (!acousticModel.contains(subphone)) continue;
+
+        p++;
         node = this;
-        for (String phoneme_ : pronunciation) {
-          nextNode = node.children.get(phoneme_);
+        for (String phoneme : pronunciation) {
+          nextNode = node.children.get(phoneme);
           if (nextNode == null) {
-            nextNode = new LexiconNode(phoneme_, node);
-            node.children.put(phoneme_, nextNode);
+            nextNode = new LexiconNode(phoneme, node);
+            node.children.put(phoneme, nextNode);
           }
           node = nextNode;
         }
         node.words.add(indexer.addAndGetIndex(word));
       }
+      if (p > 0) index++;
     }
 
-//    System.out.println("skipped = " + skipped);
+    System.out.println("Words in Lexicon: " + index);
   }
 
   public String toString() {
@@ -106,7 +128,7 @@ class Recognizer implements SpeechRecognizer {
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
   final static double WORD_BONUS = Math.log(1.3);
-  final static double LM_BOOST = 4.5d;
+  final static double LM_BOOST = 5d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
 
@@ -115,7 +137,7 @@ class Recognizer implements SpeechRecognizer {
   State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
-    lexicon = new LexiconNode(dict);
+    lexicon = new LexiconNode(dict, acousticModel);
     this.dict = dict;
     this.acousticModel = acousticModel;
     Iterable<List<String>> sents = SentenceCollection.Reader.readSentenceCollection(lmDataPath);
@@ -184,7 +206,7 @@ class Recognizer implements SpeechRecognizer {
 //        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
 //          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
 //        }
-        // System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
+        System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
         return Double.NEGATIVE_INFINITY;
       }
       return acousticModel.getLogProbability(this.subphone, point);
