@@ -36,7 +36,7 @@ class LexiconNode {
   String phoneme = "";
   LexiconNode prevNode;
   ArrayList<Integer> words;
-  double probability = 0;
+  double probability = Double.NEGATIVE_INFINITY;
 
   LexiconNode(String phoneme, LexiconNode prevNode) {
     this.phoneme = phoneme;
@@ -44,12 +44,11 @@ class LexiconNode {
     this.words = new ArrayList<Integer>();
   };
 
-  LexiconNode(PronunciationDictionary dict, AcousticModel acousticModel) {
+  LexiconNode(PronunciationDictionary dict, AcousticModel acousticModel, NgramLanguageModel lm) {
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
 
-    ArrayList<String> skipped = new ArrayList<String>(); // TODO: Skip stuff
-
-    int index = 0;
+    int[] unigram = new int[1];
+    int wordCount = 0;
     for (String word : dict.getContainedWords()) {
       List<List<String>> pronunciations = dict.getPronunciations(word);
 
@@ -84,12 +83,21 @@ class LexiconNode {
           }
           node = nextNode;
         }
-        node.words.add(indexer.addAndGetIndex(word));
+        int index = indexer.addAndGetIndex(word);
+        node.words.add(index);
+
+        unigram[0] = index;
+        double unigramProbability = lm.getNgramLogProbability(unigram, 0, 1);
+        LexiconNode curr = node;
+        while (curr != this) {
+          curr.probability = Math.max(curr.probability, unigramProbability);
+          curr = curr.prevNode;
+        }
       }
-      if (p > 0) index++;
+      if (p > 0) wordCount++;
     }
 
-    System.out.println("Words in Lexicon: " + index);
+    System.out.println("Words in Lexicon: " + wordCount);
   }
 
   public String toString() {
@@ -115,9 +123,8 @@ class LexiconNode {
 class Recognizer implements SpeechRecognizer {
 
   final LexiconNode lexicon;
-  final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 2048;
+  final static int BEAM_SIZE = 512;
   final static double WORD_BONUS = Math.log(1.1);
   final static double WIP_MULTIPLIER = 10d;
   final static double LM_BOOST = 8d;
@@ -130,12 +137,11 @@ class Recognizer implements SpeechRecognizer {
   State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 
   public Recognizer(AcousticModel acousticModel, PronunciationDictionary dict, String lmDataPath) {
-    lexicon = new LexiconNode(dict, acousticModel);
-    this.dict = dict;
     this.acousticModel = acousticModel;
     Iterable<List<String>> sents = SentenceCollection.Reader.readSentenceCollection(lmDataPath);
     lm = KneserNeyLmFactory.newLanguageModel(sents, false);
     START_SYMBOL = indexer.indexOf("<s>");
+    lexicon = new LexiconNode(dict, acousticModel, lm);
     System.out.println("-------------------------------");
   }
 
@@ -206,7 +212,7 @@ class Recognizer implements SpeechRecognizer {
       return newState;
     }
 
-    State trans1_2(float[] point) { // TODO: Smear LM
+    State trans1_2(float[] point) {
       assert this.subphone.getSubphonePosn() == 1;
       State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
@@ -224,6 +230,9 @@ class Recognizer implements SpeechRecognizer {
       newState.lexiconNode = nextNode == null ? this.lexiconNode : nextNode;
       newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 3, "", nextNode == null ? "" : nextNode.phoneme);
       newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
+      if (nextNode != null) {
+        newState.probability += nextNode.probability - this.lexiconNode.probability;
+      } // TODO: else pay cost early
       return newState;
     }
 
@@ -386,14 +395,14 @@ class Recognizer implements SpeechRecognizer {
 //                          + indexer.get(ngram[2]) + "]");
 //                }
                 lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.03d), 1d));
-                lmProb += state.probability;
+                lmProb += state.probability - state.lexiconNode.probability;
                 if (lmProb < nextBeam.minProb()) continue;
                 for (LexiconNode nextNode : lexicon.children.values()) {
                   assert state.subphone.getSubphonePosn() == 3;
                   State newState = new State(state, word);
                   newState.lexiconNode = nextNode;
                   newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
-                  newState.probability = lmProb + acousticModel.getLogProbability(newState.subphone, features);;
+                  newState.probability = lmProb + nextNode.probability + acousticModel.getLogProbability(newState.subphone, features);
                   nextBeam.relax(newState);
                 }
               }
