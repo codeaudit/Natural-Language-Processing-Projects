@@ -47,8 +47,6 @@ class LexiconNode {
   LexiconNode prevNode;
   ArrayList<Integer> words;
 
-  int level; // TODO: Remove
-
   LexiconNode(String phoneme, LexiconNode prevNode) {
     this.phoneme = phoneme;
     this.prevNode = prevNode;
@@ -56,7 +54,6 @@ class LexiconNode {
   };
 
   LexiconNode(PronunciationDictionary dict) {
-    this.level = 0;
     StringIndexer indexer = EnglishWordIndexer.getIndexer();
 
     ArrayList<String> skipped = new ArrayList<String>(); // TODO: Skip stuff
@@ -71,7 +68,6 @@ class LexiconNode {
           nextNode = node.children.get(phoneme_);
           if (nextNode == null) {
             nextNode = new LexiconNode(phoneme_, node);
-            nextNode.level = node.level + 1;
             node.children.put(phoneme_, nextNode);
           }
           node = nextNode;
@@ -109,8 +105,7 @@ class Recognizer implements SpeechRecognizer {
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
   final static int BEAM_SIZE = 2048;
-  final static double WORD_BONUS = Math.log(1.3);
-  final static double SUBPHONE_BONUS = Math.log(1.0);
+  final static double WORD_BONUS = Math.log(1.2);
   final static double LM_BOOST = 3d;
   final static StringIndexer indexer = EnglishWordIndexer.getIndexer();
   static int[] ngram = new int[3];
@@ -133,6 +128,7 @@ class Recognizer implements SpeechRecognizer {
     boolean hashCacheNull = true;
 
     int prevWord = -1;
+    int prevPrevWord = -1;
     State prevState;
     LexiconNode lexiconNode;
     SubphoneWithContext subphone;
@@ -159,9 +155,15 @@ class Recognizer implements SpeechRecognizer {
     State(double probability) {
       this.probability = probability;
     }
+    State(State state) {
+      this.prevState = state;
+      this.prevWord = state.prevWord;
+      this.prevPrevWord = state.prevPrevWord;
+    }
     State(State prevState, int prevWord) {
       this.prevState = prevState;
       this.prevWord = prevWord;
+      this.prevPrevWord = prevState.prevWord;
     }
 
     public int compareTo(Object o) {
@@ -189,7 +191,7 @@ class Recognizer implements SpeechRecognizer {
     }
 
     State selfLoop(float[] point) {
-      State newState = new State(this, this.prevWord);
+      State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = this.subphone;
       newState.probability = this.probability + newState.acousticsProbability(point);
@@ -204,22 +206,25 @@ class Recognizer implements SpeechRecognizer {
       newState.probability = this.probability
               + newState.acousticsProbability(point)
               + WORD_BONUS;
-      ngram[0] = this.prevWord;
-      ngram[1] = word;
+      ngram[0] = prevPrevWord;
+      ngram[1] = prevWord;
+      ngram[2] = word;
       double lmProb;
-      if (prevWord != -1) {
-        lmProb = lm.getNgramLogProbability(ngram, 0, 2);
+      if (prevPrevWord != -1) {
+        lmProb = lm.getNgramLogProbability(ngram, 0, 3);
+      } else if (prevWord != -1) {
+        lmProb = lm.getNgramLogProbability(ngram, 1, 3);
       } else {
-        lmProb = lm.getNgramLogProbability(ngram, 1, 2);
+        lmProb = lm.getNgramLogProbability(ngram, 2, 3);
       }
       assert lmProb > -50: "lmProb: " + lmProb + " [" + (ngram[0] == -1 ? "" : (indexer.get(ngram[0]) + ", ")) + indexer.get(ngram[1]) + "]";
       newState.probability += lmProb * LM_BOOST;
       return newState;
     }
 
-    State trans1_2(float[] point) {
+    State trans1_2(float[] point) { // TODO: Smear LMh
       assert this.subphone.getSubphonePosn() == 1;
-      State newState = new State(this, this.prevWord);
+      State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = new SubphoneWithContext(
               newState.lexiconNode.phoneme,
@@ -231,7 +236,7 @@ class Recognizer implements SpeechRecognizer {
 
     State trans2_3(float[] point, LexiconNode nextNode) {
       assert this.subphone.getSubphonePosn() == 2;
-      State newState = new State(this, this.prevWord);
+      State newState = new State(this);
       newState.lexiconNode = nextNode == null ? this.lexiconNode : nextNode;
       newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 3, "", nextNode == null ? "" : nextNode.phoneme);
       newState.probability = this.probability + newState.acousticsProbability(point);
@@ -240,10 +245,10 @@ class Recognizer implements SpeechRecognizer {
 
     State trans3_1(float[] point) {
       assert this.subphone.getSubphonePosn() == 3;
-      State newState = new State(this, this.prevWord);
+      State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 1, this.lexiconNode.prevNode.phoneme, "");
-      newState.probability = this.probability + newState.acousticsProbability(point) + SUBPHONE_BONUS;
+      newState.probability = this.probability + newState.acousticsProbability(point);
       return newState;
     }
   }
