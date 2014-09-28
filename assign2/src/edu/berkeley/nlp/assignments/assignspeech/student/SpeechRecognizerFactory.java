@@ -128,7 +128,7 @@ class Recognizer implements SpeechRecognizer {
   final LexiconNode lexicon;
   final PronunciationDictionary dict;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 1024;
+  final static int BEAM_SIZE = 512;
   final static double WORD_BONUS = Math.log(1.12);
   final static double WIP_MULTIPLIER = 10d;
   final static double LM_BOOST = 7d;
@@ -393,7 +393,7 @@ class Recognizer implements SpeechRecognizer {
 //                          + (ngram[1] == -1 ? "" : (indexer.get(ngram[1]) + ", "))
 //                          + indexer.get(ngram[2]) + "]");
 //                }
-                lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.05d), 1d));
+                lmProb = (lmProb * LM_BOOST) + (WORD_BONUS * Math.max(WIP_MULTIPLIER / (diff + 0.03d), 1d));
                 lmProb += state.probability;
                 if (lmProb < nextBeam.minProb()) continue;
                 for (LexiconNode nextNode : lexicon.children.values()) {
