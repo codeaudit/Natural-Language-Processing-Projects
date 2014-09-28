@@ -206,22 +206,11 @@ class Recognizer implements SpeechRecognizer {
       probability = 0;
     }
 
-    double acousticsProbability(float[] point) {
-//      if (!acousticModel.contains(this.subphone)) {
-////        if (subphone.getSubphonePosn() != 2 && subphone.getBackContext() == "" && subphone.getForwardContext() == "") {
-////          return acousticModel.getLogProbability(new SubphoneWithContext(subphone.getPhoneme(), 2, "", ""), point);
-////        }
-//        System.out.println("WARNING: acoustic " + this.subphone + " unseen " + this.lexiconNode);
-//        return Double.NEGATIVE_INFINITY;
-//      }
-      return acousticModel.getLogProbability(this.subphone, point);
-    }
-
     State selfLoop(float[] point) {
       State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = this.subphone;
-      newState.probability = this.probability + newState.acousticsProbability(point);
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
       return newState;
     }
 
@@ -233,7 +222,7 @@ class Recognizer implements SpeechRecognizer {
               newState.lexiconNode.phoneme,
               this.subphone.getSubphonePosn() + 1,
               "", "");
-      newState.probability = this.probability + newState.acousticsProbability(point);
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
       return newState;
     }
 
@@ -242,7 +231,7 @@ class Recognizer implements SpeechRecognizer {
       State newState = new State(this);
       newState.lexiconNode = nextNode == null ? this.lexiconNode : nextNode;
       newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 3, "", nextNode == null ? "" : nextNode.phoneme);
-      newState.probability = this.probability + newState.acousticsProbability(point);
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
       return newState;
     }
 
@@ -251,7 +240,7 @@ class Recognizer implements SpeechRecognizer {
       State newState = new State(this);
       newState.lexiconNode = this.lexiconNode;
       newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 1, this.lexiconNode.prevNode.phoneme, "");
-      newState.probability = this.probability + newState.acousticsProbability(point);
+      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
       return newState;
     }
   }
@@ -359,7 +348,11 @@ class Recognizer implements SpeechRecognizer {
 //      }
 
       int diff = acousticFeatures.size() - index;
-      if (diff < 10) {
+      if (diff == 0) {
+        nextBeam = new Beam(4);
+      } else if (diff < 2) {
+        nextBeam = new Beam(BEAM_SIZE * 4);
+      } else if (diff < 8) {
         nextBeam = new Beam(BEAM_SIZE * 2);
       } else {
         nextBeam = new Beam(BEAM_SIZE);
@@ -408,7 +401,7 @@ class Recognizer implements SpeechRecognizer {
                   State newState = new State(state, word);
                   newState.lexiconNode = nextNode;
                   newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
-                  newState.probability = newState.acousticsProbability(features) + lmProb;
+                  newState.probability = lmProb + acousticModel.getLogProbability(newState.subphone, features);;
                   nextBeam.relax(newState);
                 }
               }
