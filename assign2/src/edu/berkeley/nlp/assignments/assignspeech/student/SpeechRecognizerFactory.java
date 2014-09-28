@@ -362,10 +362,10 @@ class Recognizer implements SpeechRecognizer {
       index++;
       prevBeam = nextBeam;
 
-      int PRINT_EVERY = 2;
-      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
-        System.out.println(getPrediction(nextBeam));
-      }
+//      int PRINT_EVERY = 2;
+//      if (index % PRINT_EVERY == PRINT_EVERY - 1) {
+//        System.out.println(getPrediction(nextBeam));
+//      }
 
       int diff = acousticFeatures.size() - index;
       if (diff < 10) {
@@ -440,7 +440,7 @@ class Recognizer implements SpeechRecognizer {
     ArrayList<String> ret = new ArrayList<String>();
 
     int word = best.prevWord;
-    System.out.println(best.lexiconNode);
+    // System.out.println(best.lexiconNode);
     if (word == -1) {
       return new ArrayList<String>();
     }
