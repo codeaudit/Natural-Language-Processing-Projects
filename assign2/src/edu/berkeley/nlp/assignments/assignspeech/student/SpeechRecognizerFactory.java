@@ -124,7 +124,7 @@ class Recognizer implements SpeechRecognizer {
 
   final LexiconNode lexicon;
   final AcousticModel acousticModel;
-  final static int BEAM_SIZE = 512;
+  final static int BEAM_SIZE = 256;
   final static double WORD_BONUS = Math.log(1.1);
   final static double WIP_MULTIPLIER = 10d;
   final static double LM_BOOST = 8d;
