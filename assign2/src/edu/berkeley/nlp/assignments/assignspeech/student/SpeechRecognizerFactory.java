@@ -239,18 +239,6 @@ class Recognizer implements SpeechRecognizer {
       return newState;
     }
 
-    State trans2_3(float[] point, LexiconNode nextNode) {
-      assert this.subphone.getSubphonePosn() == 2;
-      State newState = new State(this);
-      newState.lexiconNode = nextNode == null ? this.lexiconNode : nextNode;
-      newState.subphone = new SubphoneWithContext(this.lexiconNode.phoneme, 3, "", nextNode == null ? "" : nextNode.phoneme);
-      newState.probability = this.probability + acousticModel.getLogProbability(newState.subphone, point);
-      if (nextNode != null) {
-        newState.probability += nextNode.probability - this.lexiconNode.probability;
-      } // TODO: else pay cost early
-      return newState;
-    }
-
     State trans3_1(float[] point) {
       assert this.subphone.getSubphonePosn() == 3;
       State newState = new State(this);
@@ -334,7 +322,7 @@ class Recognizer implements SpeechRecognizer {
     }
 
     double minProb() {
-      if (size == 0) return Double.NEGATIVE_INFINITY;
+      if (size < heapMaxSize / 2) return Double.NEGATIVE_INFINITY;
       return heap[1].probability;
     }
   }
@@ -413,7 +401,6 @@ class Recognizer implements SpeechRecognizer {
                 lmProb += state.probability - state.lexiconNode.probability;
                 if (lmProb < nextBeam.minProb()) continue;
                 for (LexiconNode nextNode : lexicon.children.values()) {
-                  assert state.subphone.getSubphonePosn() == 3;
                   State newState = new State(state, word);
                   newState.lexiconNode = nextNode;
                   newState.subphone = new SubphoneWithContext(nextNode.phoneme, 1, "", "");
@@ -426,10 +413,21 @@ class Recognizer implements SpeechRecognizer {
             break;
           case 2:
             for (LexiconNode nextNode : state.lexiconNode.children.values()) {
-              nextBeam.relax(state.trans2_3(features, nextNode));
+              double p = state.probability + nextNode.probability - state.lexiconNode.probability;
+              if (p < nextBeam.minProb()) continue;
+              State newState = new State(state);
+              newState.lexiconNode = nextNode;
+              newState.subphone = new SubphoneWithContext(state.lexiconNode.phoneme, 3, "", nextNode.phoneme);
+              newState.probability = p + acousticModel.getLogProbability(newState.subphone, features);
+              nextBeam.relax(newState);
             }
             if (state.lexiconNode.words.size() != 0) {
-              nextBeam.relax(state.trans2_3(features, null));
+              State newState = new State(state);
+              newState.lexiconNode = state.lexiconNode;
+              newState.subphone = new SubphoneWithContext(state.lexiconNode.phoneme, 3, "", "");
+              newState.probability = state.probability + acousticModel.getLogProbability(newState.subphone, features);
+              // TODO: else pay cost early
+              nextBeam.relax(newState);
             }
             break;
           case 1:
