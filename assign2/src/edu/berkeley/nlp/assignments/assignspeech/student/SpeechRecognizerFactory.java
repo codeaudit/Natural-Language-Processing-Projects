@@ -147,7 +147,7 @@ class Recognizer implements SpeechRecognizer {
   static int[] ngram = new int[3];
 
   NgramLanguageModel lm;
-  int START_SYMBOL; // TODO: TEST THIS IS THIS GOOD???
+  int START_SYMBOL;
   State MIN_STATE = new State(Double.NEGATIVE_INFINITY);
   State MAX_STATE = new State(Double.POSITIVE_INFINITY);
 

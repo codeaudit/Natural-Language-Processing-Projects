@@ -17,8 +17,6 @@
 \begin{document}
 \maketitle
 
-\section{Introduction}
-
 \section{Data Structures}
 The pronunciation dictionary is stored as a prefix trie. Each node in the trie contains the phoneme at the node, a list of child nodes, a list of words that are made of all phonemes up to and including this node, and the max unigram probability of all words that are in the subtree rooted at this node. The nodes also contain parent pointers for convenience. When the trie is built when the recognizer is intialized, all words whose subphones are not all in the acoustic model are ignored. When backoff to non-contexual subphones were used instead of discarding the words altogether, the results were worse, most likely due to unseen words being rare and bad anyway.
 
@@ -40,7 +38,7 @@ After all the feature vectors are processed, the best state is found in the last
 
 \section{Accuracy Optimizations}
 
-The recognizer uses a language model scaling factor of 8, and a word bonus of $log(1.1)$. The unigram LM is also smeared across phonemes. These are implemented in standard ways. The lexicon is also filtered to only contain words seen in training.
+The recognizer uses a language model scaling factor of 8, and a word bonus of $log(1.1)$. The unigram LM is also smeared across phonemes, where at each phoneme transition the probability difference is paid. These are implemented in standard ways. These values were hand coarsely hand searched due to the large amount of time to test each value. The lexicon is also filtered to only contain words seen in training.
 
 Much of the effort went into optimizing the recognition of the ends of utterances. The original algorithm often ends up with final beams filled with hypotheses that haven't quite finished the last word, since the hypotheses that did not finish the last word haven't paid the trigram word penalty. This causes the prediction to mispredict or omit the last word. 
 
@@ -50,6 +48,24 @@ At first, I attempted to simply add the word that the best state in the last bea
 
 After implementing the beams as primitive heaps, a profiler was run on the code to find where the time is spent. The results showed that around half the time was spent calculating GMM's in the acoustic model, and a third of the time was spent sorting the beam. The language model took very little time in comparison.
 
+To reduce the number of both acoustic model queries and beam insertions, I added a check before the transition into a new phoneme or a new word. If the penalty from the new phoneme's smeared LM or new word's LM makes the probability of the state lower than the worst state in the beam, then the state is thrown away without calculating its penalty from the acoustic model. This turns out to save a fairly substantial number of queries because the number of terrbile hypothesis is high. To preserve full accuracy though, this optimization can only be used when the beam is already full, since otherwise the discarded state might have belonged on the beam. But when I tested the optimization where states begin to be thrown away when the beam is half full, it only increased WER by around 0.005, most likely due to the acoustic model penalty not being considered when doing this comparison. Checking for the min probability in the beam is also fast due to the min-heap data structure.
+
+Caching was then put into place across various areas of the decoder. Objects cached includes SubphoneWithContext instances, trie nodes, and hash codes of states. Language model queries were not cached because the profiler showed little time spent in the LM, and the LM is a lookup table already anyway. Acoustic model queries were difficult to cache as well, due to a relative lack of duplicate queries, and the AcousticModel class was abstracted away so the recognizer did not have direct access to the GMM's to do anything fancy, besides filtering out all words that aren't in the acoustic model during initialization to avoid checking for whether the subphone is contained in the model.
+
+Garbage collection and memory allocation time turned out to be not too significant compared to GMM query time, but the top memory consumer was the beam's HashMap. Various places in the code, such as bubbling in the heap, were also treated to micro Java optimizations. Finally, the beam size was reduced to 512 to speed up the decoding. While reducing beam size had the biggest accuracy trade-off, it was relatively small ($<5\%$ from 2048) for the amount of time saved (~4x speedup).
+
+\section{Recognition Errors}
+
+One main source of errors is the end of utterances. While some sentences do output correct last words, many still omit or mistake the last word. When word bonus is increased further for the last words, the recognizer began to produce too many wrong words. 
+
+The recognizer generally outputs words whose phonemes are similar to the actual phonemes, which is a sign that a better trained LM is needed, since increasing the LM scaling factor further begins to hurt WER. The number of words of the prediction generally matches the gold, suggesting that the small word bonus of $log(1.1)$ is about right.
+
+\section{Final Results}
+
+WER: 0.417\\
+Total time for full test: 3m 44s (on my machine)\\
+950MB heap size\\
+850MB peak heap use
 
 
 \end{document}
