@@ -28,7 +28,9 @@ class GenerativeParser implements Parser {
     ArrayList<Tree<String>> trees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
       if (Trees.PennTreeRenderer.render(tree).contains("Vice")) {
-        trees.add(TreeAnnotations.annotateTreeLosslessBinarization(tree));
+        Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
+        trees.add(newTree);
+        System.out.println(Trees.PennTreeRenderer.render(newTree));
       }
     }
     System.out.println(trees.size());
@@ -43,13 +45,13 @@ class GenerativeParser implements Parser {
     }
   }
 
-  double [][][] score;
+  double [][][] binaryScores;
 
   void initTable(int size) {
-    score = new double[numLabels][][];
+    binaryScores = new double[numLabels][][];
     for (int x = 0; x < numLabels; x++) {
       double [][] page = new double[size][];
-      score[x] = page;
+      binaryScores[x] = page;
       for (int i = 0; i < size; i++) {
         page[i] = new double[size - i];
         Arrays.fill(page[i], Double.NaN);
@@ -65,20 +67,9 @@ class GenerativeParser implements Parser {
     for (int x = 0; x < numLabels; x++) {
       String transformedLabel = indexer.get(x);
 
-//      int index = -1;
-//      for (String delim : new String[] { "=", "<", ">", "^", "_", "->" }) {
-//        final int currIndex = transformedLabel.indexOf(delim);
-//        index = index < 0 ? currIndex : (currIndex < 0 ? index : Math.min(currIndex, index));
-//      }
-//      int start = 0;
-//      if (transformedLabel.indexOf("@") == 0) {
-//        start = 1;
-//      }
-//      transformedLabel = new String(transformedLabel.substring(start, index < 0 ? transformedLabel.length() : index));
-
-      double [][] labelTable = score[x];
+      double [][] labelTable = binaryScores[x];
       for (int j = 0; j < length; j++) {
-        double s = lexicon.scoreTagging(sentence.get(j), transformedLabel);
+        double s = lexicon.binaryScoresTagging(sentence.get(j), transformedLabel);
         if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
 //        if (s != Double.NEGATIVE_INFINITY) {
 //          System.out.println(sentence.get(j) + " " + transformedLabel);
@@ -93,27 +84,30 @@ class GenerativeParser implements Parser {
         for (int x = 0; x < numLabels; x++) {
           double max = Double.NEGATIVE_INFINITY;
           for (BinaryRule rule : grammar.getBinaryRulesByParent(x)) {
+            if (x == 1) {
+              System.out.println(rule);
+            }
             double ruleScore = rule.getScore();
             assert length - j > i + 1;
             for (int k = i + 1; k < length-j; k++) {
               double s = ruleScore;
-              s += score[rule.getLeftChild()][i][length-k];
-              s += score[rule.getRightChild()][k][j];
+              s += binaryScores[rule.getLeftChild()][i][length-k];
+              s += binaryScores[rule.getRightChild()][k][j];
               if (s > max) {
                 max = s;
               }
             }
           }
-          score[x][i][j] = max;
+          binaryScores[x][i][j] = max;
         }
       }
     }
 
     for (int x = 0; x < numLabels; x++) {
-      double s = score[x][0][0];
+      double s = binaryScores[x][0][0];
       if (true || s != Double.NEGATIVE_INFINITY) {
-        System.out.println("score[" + indexer.get(x) + "][0][0] = " + s);
-        printArray(score[x]);
+        System.out.println("binaryScores[" + indexer.get(x) + "][0][0] = " + s);
+        printArray(binaryScores[x]);
       }
     }
 
