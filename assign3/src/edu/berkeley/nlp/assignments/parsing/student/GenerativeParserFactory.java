@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.ArrayList;
 
 import edu.berkeley.nlp.assignments.parsing.BinaryRule;
+import edu.berkeley.nlp.assignments.parsing.TreeAnnotations;
 import edu.berkeley.nlp.assignments.parsing.UnaryClosure;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.assignments.parsing.*;
@@ -31,14 +32,15 @@ class GenerativeParser implements Parser {
   GenerativeParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> trees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
-      if (Trees.PennTreeRenderer.render(tree).contains("Odds")) {
-        Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
-        trees.add(newTree);
-        System.out.println(Trees.PennTreeRenderer.render(newTree));
-      }
-//      Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
-//      trees.add(newTree);
+//      if (Trees.PennTreeRenderer.render(tree).contains("EARNINGS")) {
+//        Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
+//        trees.add(newTree);
+//        System.out.println(Trees.PennTreeRenderer.render(newTree));
+//      }
+      Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
+      trees.add(newTree);
     }
+    assert trees.size() > 0 : "No training trees";
     lexicon = new SimpleLexicon(trees);
     grammar = Grammar.generativeGrammarFromTrees(trees);
     indexer = grammar.getLabelIndexer();
@@ -93,7 +95,7 @@ class GenerativeParser implements Parser {
   }
 
   public Tree<String> getBestParse(List<String> sentence) {
-    System.out.println("sentence = " + sentence);
+//    System.out.println("sentence = " + sentence);
     currentSentence = sentence;
     length = sentence.size();
     initTables(length);
@@ -115,10 +117,10 @@ class GenerativeParser implements Parser {
     for (int sum = length - 1; sum >= 0; sum--) {
       for (int i = 0; i <= sum; i++) {
         int j = sum - i;
-        double max = Double.NEGATIVE_INFINITY;
-        double s, ruleScore;
+        double s, ruleScore, max;
 
         for (int x = 0; x < numLabels; x++) {
+          max = Double.NEGATIVE_INFINITY;
           if (sum != length - 1) {
             int ruleNum = 0;
             for (BinaryRule rule : grammar.getBinaryRulesByParent(x)) {
@@ -126,6 +128,7 @@ class GenerativeParser implements Parser {
               assert length - j > i + 1;
               for (int k = i + 1; k < length - j; k++) {
                 s = ruleScore;
+                assert ruleScore <= 0;
                 s += unaryScores[rule.getLeftChild()][i][length - k];
                 s += unaryScores[rule.getRightChild()][k][j];
                 if (s > max) {
@@ -136,18 +139,29 @@ class GenerativeParser implements Parser {
               }
               ruleNum++;
             }
+            assert max == Double.NEGATIVE_INFINITY || binaryRuleNum[x][i][j] != -1;
             binaryScores[x][i][j] = max;
           }
         }
 
         for (int x = 0; x < numLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
+          boolean selfLooped = false;
           for (UnaryRule rule : unaryClosure.getClosedUnaryRulesByParent(x)) {
+            int child = rule.getChild();
+            if (child == x) selfLooped = true;
             s = rule.getScore();
-            s += binaryScores[rule.getChild()][i][j];
+            s += binaryScores[child][i][j];
             if (s > max) {
               max = s;
               unaryChild[x][i][j] = rule.getChild();
+            }
+          }
+          if (!selfLooped) {
+            s = binaryScores[x][i][j];
+            if (s > max) {
+              max = s;
+              unaryChild[x][i][j] = x;
             }
           }
           unaryScores[x][i][j] = max;
@@ -155,13 +169,13 @@ class GenerativeParser implements Parser {
       }
     }
 
-    for (int x = 0; x < numLabels; x++) {
-      System.out.println(x + ": " + indexer.get(x));
-      printArray(unaryScores[x]);
-      printArray(binaryScores[x]);
-    }
+//    for (int x = 0; x < numLabels; x++) {
+//      System.out.println(x + ": " + indexer.get(x));
+//      printArray(unaryScores[x]);
+//      printArray(binaryScores[x]);
+//    }
 
-    System.out.println("score = " + unaryScores[0][0][0]);
+//    System.out.println("score = " + unaryScores[0][0][0]);
 
     Tree<String> ret;
     if (unaryScores[0][0][0] == Double.NEGATIVE_INFINITY) {
@@ -169,8 +183,8 @@ class GenerativeParser implements Parser {
     } else {
       ret = unaryTree(0, 0, 0);
     }
-    System.out.println(Trees.PennTreeRenderer.render(ret));
-    return ret;
+//    System.out.println(Trees.PennTreeRenderer.render(ret));
+    return TreeAnnotations.unAnnotateTree(ret);
   }
 
   Tree<String> unaryTree(int x, int i, int j) {
@@ -194,6 +208,7 @@ class GenerativeParser implements Parser {
 
   Tree<String> binaryTree(int x, int i, int j) {
     int ruleNum = binaryRuleNum[x][i][j];
+    assert ruleNum != -1 : binaryScores[x][i][j];
     int k = binaryK[x][i][j];
     BinaryRule rule = grammar.getBinaryRulesByParent(x).get(ruleNum);
     ArrayList<Tree<String>> children = new ArrayList<Tree<String>>();
@@ -202,9 +217,9 @@ class GenerativeParser implements Parser {
     return new Tree<String>(indexer.get(x), children);
   }
 
-  boolean TEST = true;
+  boolean TEST = false;
   void test() {
-    String raw = "Odds and Ends";
+    String raw = "EARNINGS :";
     List<String> sentence = Arrays.asList(raw.split(" "));
     System.out.println(getBestParse(sentence));
   }
