@@ -3,9 +3,7 @@ package edu.berkeley.nlp.assignments.parsing.student;
 import java.util.*;
 import java.util.ArrayList;
 
-import edu.berkeley.nlp.assignments.parsing.BinaryRule;
-import edu.berkeley.nlp.assignments.parsing.TreeAnnotations;
-import edu.berkeley.nlp.assignments.parsing.UnaryClosure;
+import edu.berkeley.nlp.assignments.parsing.student.FineAnnotator;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.assignments.parsing.*;
 import edu.berkeley.nlp.ling.Tree;
@@ -32,12 +30,12 @@ class GenerativeParser implements Parser {
   GenerativeParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> trees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
-//      if (Trees.PennTreeRenderer.render(tree).contains("EARNINGS")) {
-//        Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
+//      if (Trees.PennTreeRenderer.render(tree).contains("Odds")) {
+//        Tree newTree = FineAnnotator.annotateTree(tree);
 //        trees.add(newTree);
 //        System.out.println(Trees.PennTreeRenderer.render(newTree));
 //      }
-      Tree newTree = TreeAnnotations.annotateTreeLosslessBinarization(tree);
+      Tree newTree = FineAnnotator.annotateTree(tree);
       trees.add(newTree);
     }
     assert trees.size() > 0 : "No training trees";
@@ -219,7 +217,7 @@ class GenerativeParser implements Parser {
 
   boolean TEST = false;
   void test() {
-    String raw = "EARNINGS :";
+    String raw = "Odds and Ends";
     List<String> sentence = Arrays.asList(raw.split(" "));
     System.out.println(getBestParse(sentence));
   }
@@ -231,61 +229,6 @@ class GenerativeParser implements Parser {
     System.out.println(Arrays.deepToString(arr));
   }
 }
-
-
-/**
- * Class which contains code for annotating and binarizing trees for the
- * parser's use, and debinarizing and unannotating them for scoring.
-// */
-//public class MyAnnotator
-//{
-//  /**
-//   * This performs lossless binarization. You'll need to define your own
-//   * function to do more intelligent markovization.
-//   *
-//   * @param unAnnotatedTree
-//   * @return
-//   */
-//  public static Tree<String> annotateTreeLosslessBinarization(Tree<String> unAnnotatedTree) {
-//
-//    return binarizeTree(unAnnotatedTree);
-//  }
-//
-//  private static Tree<String> binarizeTree(Tree<String> tree) {
-//    String label = tree.getLabel();
-//    if (tree.isLeaf()) return new Tree<String>(label);
-//    if (tree.getChildren().size() == 1) { return new Tree<String>(label, Collections.singletonList(binarizeTree(tree.getChildren().get(0)))); }
-//    // otherwise, it's a binary-or-more local tree, so decompose it into a sequence of binary and unary trees.
-//    String intermediateLabel = "@" + label + "->";
-//    Tree<String> intermediateTree = binarizeTreeHelper(tree, 0, intermediateLabel);
-//    return new Tree<String>(label, intermediateTree.getChildren());
-//  }
-//
-//  private static Tree<String> binarizeTreeHelper(Tree<String> tree, int numChildrenGenerated, String intermediateLabel) {
-//    Tree<String> leftTree = tree.getChildren().get(numChildrenGenerated);
-//    List<Tree<String>> children = new ArrayList<Tree<String>>();
-//    children.add(binarizeTree(leftTree));
-//    if (numChildrenGenerated < tree.getChildren().size() - 1) {
-//      Tree<String> rightTree = binarizeTreeHelper(tree, numChildrenGenerated + 1, intermediateLabel + "_" + leftTree.getLabel());
-//      children.add(rightTree);
-//    }
-//    return new Tree<String>(intermediateLabel, children);
-//  }
-//
-//  public static Tree<String> unAnnotateTree(Tree<String> annotatedTree) {
-//    // Remove intermediate nodes (labels beginning with "@"
-//    // Remove all material on node labels which follow their base symbol (cuts anything after <,>,^,=,_ or ->)
-//    // Examples: a node with label @NP->DT_JJ will be spliced out, and a node with label NP^S will be reduced to NP
-//    Tree<String> debinarizedTree = Trees.spliceNodes(annotatedTree, new Filter<String>()
-//    {
-//      public boolean accept(String s) {
-//        return s.startsWith("@");
-//      }
-//    });
-//    Tree<String> unAnnotatedTree = (new Trees.LabelNormalizer()).transformTree(debinarizedTree);
-//    return unAnnotatedTree;
-//  }
-//}
 
 
 
