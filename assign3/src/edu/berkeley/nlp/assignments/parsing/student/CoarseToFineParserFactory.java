@@ -18,35 +18,38 @@ public class CoarseToFineParserFactory implements ParserFactory {
 }
 
 class CoarseToFineParser implements Parser {
-  SimpleLexicon lexicon;
-  Grammar grammar;
-  Indexer<String> indexer;
-  UnaryClosure unaryClosure;
+  SimpleLexicon fineLexicon, coarseLexicon;
+  Grammar fineGrammar, coarseGrammar;
+  Indexer<String> fineIndexer, coarseIndexer;
+  UnaryClosure fineUnaryClosure, coarseUnaryClosure;
   List<String> currentSentence;
-  int numLabels;
+  int numFineLabels, numCoarseLabels;
   int length;
   boolean TEST = false;
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
-    ArrayList<Tree<String>> trees = new ArrayList<Tree<String>>();
+    ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
+    ArrayList<Tree<String>> coarseTrees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
-//      if (Trees.PennTreeRenderer.render(tree).contains("Odds")) {
-//        Tree newTree = FineAnnotator.annotateTree(tree);
-//        trees.add(newTree);
-//        System.out.println(Trees.PennTreeRenderer.render(newTree));
-//      }
       Tree<String> newTree = FineAnnotator.annotateTree(tree);
-      trees.add(newTree);
-//      System.out.println(Trees.PennTreeRenderer.render(tree));
-//      System.out.println(Trees.PennTreeRenderer.render(newTree));
-//      System.exit(0);
+      fineTrees.add(newTree);
+
+      newTree = CoarseAnnotator.annotateTree(tree);
+      coarseTrees.add(newTree);
     }
-    assert trees.size() > 0 : "No training trees";
-    lexicon = new SimpleLexicon(trees);
-    grammar = Grammar.generativeGrammarFromTrees(trees);
-    indexer = grammar.getLabelIndexer();
-    unaryClosure = new UnaryClosure(indexer, grammar.getUnaryRules());
-    numLabels = indexer.size();
+    assert fineTrees.size() > 0 : "No training trees";
+
+    fineLexicon = new SimpleLexicon(fineTrees);
+    fineGrammar = Grammar.generativeGrammarFromTrees(fineTrees);
+    fineIndexer = fineGrammar.getLabelIndexer();
+    fineUnaryClosure = new UnaryClosure(fineIndexer, fineGrammar.getUnaryRules());
+    numFineLabels = fineIndexer.size();
+
+    coarseLexicon = new SimpleLexicon(coarseTrees);
+    coarseGrammar = Grammar.generativeGrammarFromTrees(coarseTrees);
+    coarseIndexer = coarseGrammar.getLabelIndexer();
+    coarseUnaryClosure = new UnaryClosure(coarseIndexer, coarseGrammar.getUnaryRules());
+    numCoarseLabels = coarseIndexer.size();
 
     if (TEST) {
       test();
@@ -61,11 +64,11 @@ class CoarseToFineParser implements Parser {
   UnaryRule [][][] unaryChild;
 
   void initTables(int size) {
-    binaryScores = new double[numLabels][][];
-    unaryScores = new double[numLabels][][];
-    binaryRuleNum = new int[numLabels][][];
-    binaryK = new int[numLabels][][];
-    unaryChild = new UnaryRule[numLabels][][];
+    binaryScores = new double[numFineLabels][][];
+    unaryScores = new double[numFineLabels][][];
+    binaryRuleNum = new int[numFineLabels][][];
+    binaryK = new int[numFineLabels][][];
+    unaryChild = new UnaryRule[numFineLabels][][];
     initTable(unaryScores, size);
     initTable(binaryScores, size);
     initTable(binaryRuleNum, size);
@@ -74,7 +77,7 @@ class CoarseToFineParser implements Parser {
   }
 
   void initTable(double[][][] table, int size) {
-    for (int x = 0; x < numLabels; x++) {
+    for (int x = 0; x < numFineLabels; x++) {
       double [][] page = new double[size][];
       table[x] = page;
       for (int i = 0; i < size; i++) {
@@ -85,7 +88,7 @@ class CoarseToFineParser implements Parser {
   }
 
   void initTable(int[][][] table, int size) {
-    for (int x = 0; x < numLabels; x++) {
+    for (int x = 0; x < numFineLabels; x++) {
       int [][] page = new int[size][];
       table[x] = page;
       for (int i = 0; i < size; i++) {
@@ -96,7 +99,7 @@ class CoarseToFineParser implements Parser {
   }
 
   void initTable(UnaryRule[][][] table, int size) {
-    for (int x = 0; x < numLabels; x++) {
+    for (int x = 0; x < numFineLabels; x++) {
       UnaryRule [][] page = new UnaryRule[size][];
       table[x] = page;
       for (int i = 0; i < size; i++) {
@@ -111,12 +114,12 @@ class CoarseToFineParser implements Parser {
     length = sentence.size();
     initTables(length);
 
-    for (int x = 0; x < numLabels; x++) {
-      String transformedLabel = indexer.get(x);
+    for (int x = 0; x < numFineLabels; x++) {
+      String transformedLabel = fineIndexer.get(x);
 
       double [][] labelTable = binaryScores[x];
       for (int j = 0; j < length; j++) {
-        double s = lexicon.scoreTagging(sentence.get(j), transformedLabel);
+        double s = fineLexicon.scoreTagging(sentence.get(j), transformedLabel);
         if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
 //        if (s != Double.NEGATIVE_INFINITY) {
 //          System.out.println(sentence.get(j) + " " + transformedLabel);
@@ -130,11 +133,11 @@ class CoarseToFineParser implements Parser {
         int j = sum - i;
         double s, ruleScore, max;
 
-        for (int x = 0; x < numLabels; x++) {
+        for (int x = 0; x < numFineLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
           if (sum != length - 1) {
             int ruleNum = 0;
-            for (BinaryRule rule : grammar.getBinaryRulesByParent(x)) {
+            for (BinaryRule rule : fineGrammar.getBinaryRulesByParent(x)) {
               ruleScore = rule.getScore();
               assert length - j > i + 1;
               for (int k = i + 1; k < length - j; k++) {
@@ -155,10 +158,10 @@ class CoarseToFineParser implements Parser {
           }
         }
 
-        for (int x = 0; x < numLabels; x++) {
+        for (int x = 0; x < numFineLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
           boolean selfLooped = false;
-          for (UnaryRule rule : unaryClosure.getClosedUnaryRulesByParent(x)) {
+          for (UnaryRule rule : fineUnaryClosure.getClosedUnaryRulesByParent(x)) {
             int child = rule.getChild();
             if (child == x) selfLooped = true;
             s = rule.getScore();
@@ -180,8 +183,8 @@ class CoarseToFineParser implements Parser {
       }
     }
 
-//    for (int x = 0; x < numLabels; x++) {
-//      System.out.println(x + ": " + indexer.get(x));
+//    for (int x = 0; x < numFineLabels; x++) {
+//      System.out.println(x + ": " + fineIndexer.get(x));
 //      printArray(unaryScores[x]);
 //      printArray(binaryScores[x]);
 //    }
@@ -205,18 +208,18 @@ class CoarseToFineParser implements Parser {
 
     if (i + j == length - 1) {
       List<Tree<String>> word = Collections.singletonList(new Tree<String>(currentSentence.get(i)));
-      tree = new Tree<String>(indexer.get(child), word);
+      tree = new Tree<String>(fineIndexer.get(child), word);
     } else {
       tree = binaryTree(child, i, j);
     }
 
     if (child == x) return tree;
 
-    List<Integer> path = unaryClosure.getPath(rule);
+    List<Integer> path = fineUnaryClosure.getPath(rule);
     assert path.get(path.size() - 1) == child;
     for (int k = path.size() - 2; k >= 0; k--) {
       int tag = path.get(k);
-      tree = new Tree<String>(indexer.get(tag), Collections.singletonList(tree));
+      tree = new Tree<String>(fineIndexer.get(tag), Collections.singletonList(tree));
     }
     assert path.get(0) == x;
     return tree;
@@ -226,11 +229,11 @@ class CoarseToFineParser implements Parser {
     int ruleNum = binaryRuleNum[x][i][j];
     assert ruleNum != -1 : binaryScores[x][i][j];
     int k = binaryK[x][i][j];
-    BinaryRule rule = grammar.getBinaryRulesByParent(x).get(ruleNum);
+    BinaryRule rule = fineGrammar.getBinaryRulesByParent(x).get(ruleNum);
     ArrayList<Tree<String>> children = new ArrayList<Tree<String>>();
     children.add(unaryTree(rule.getLeftChild(), i, length - k));
     children.add(unaryTree(rule.getRightChild(), k, j));
-    return new Tree<String>(indexer.get(x), children);
+    return new Tree<String>(fineIndexer.get(x), children);
   }
 
   void test() {
