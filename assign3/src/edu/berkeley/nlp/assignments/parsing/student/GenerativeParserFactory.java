@@ -4,11 +4,9 @@ import java.lang.Integer;
 import java.util.*;
 import java.util.ArrayList;
 
-import edu.berkeley.nlp.assignments.parsing.student.FineAnnotator;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.assignments.parsing.*;
 import edu.berkeley.nlp.ling.Tree;
-import edu.berkeley.nlp.ling.Trees;
 
 
 public class GenerativeParserFactory implements ParserFactory {
@@ -37,10 +35,11 @@ class GenerativeParser implements Parser {
 //        trees.add(newTree);
 //        System.out.println(Trees.PennTreeRenderer.render(newTree));
 //      }
-      Tree newTree = FineAnnotator.annotateTree(tree);
+      Tree<String> newTree = FineAnnotator.annotateTree(tree);
       trees.add(newTree);
 //      System.out.println(Trees.PennTreeRenderer.render(tree));
 //      System.out.println(Trees.PennTreeRenderer.render(newTree));
+//      System.exit(0);
     }
     assert trees.size() > 0 : "No training trees";
     lexicon = new SimpleLexicon(trees);
