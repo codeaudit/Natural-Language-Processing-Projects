@@ -2,4 +2,4 @@
 set -e
 
 ant -f build_assign_parsing.xml
-java -cp assign_parsing.jar:assign_parsing-submit.jar -ea -server -mx2000m edu.berkeley.nlp.assignments.parsing.PCFGParserTester -path wsj -parserType GENERATIVE -maxTrainLength 15 -maxTestLength 15
+java -cp assign_parsing.jar:assign_parsing-submit.jar -ea -server -mx2000m edu.berkeley.nlp.assignments.parsing.PCFGParserTester -path wsj -parserType GENERATIVE -maxTrainLength 40 -maxTestLength 40
