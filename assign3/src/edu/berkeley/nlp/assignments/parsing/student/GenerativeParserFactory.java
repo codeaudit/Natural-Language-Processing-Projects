@@ -1,5 +1,6 @@
 package edu.berkeley.nlp.assignments.parsing.student;
 
+import java.lang.Integer;
 import java.util.*;
 import java.util.ArrayList;
 
@@ -26,6 +27,7 @@ class GenerativeParser implements Parser {
   List<String> currentSentence;
   int numLabels;
   int length;
+  boolean TEST = false;
 
   GenerativeParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> trees = new ArrayList<Tree<String>>();
@@ -37,6 +39,8 @@ class GenerativeParser implements Parser {
 //      }
       Tree newTree = FineAnnotator.annotateTree(tree);
       trees.add(newTree);
+//      System.out.println(Trees.PennTreeRenderer.render(tree));
+//      System.out.println(Trees.PennTreeRenderer.render(newTree));
     }
     assert trees.size() > 0 : "No training trees";
     lexicon = new SimpleLexicon(trees);
@@ -55,14 +59,14 @@ class GenerativeParser implements Parser {
   double [][][] unaryScores;
   int [][][] binaryRuleNum;
   int [][][] binaryK;
-  int [][][] unaryChild;
+  UnaryRule [][][] unaryChild;
 
   void initTables(int size) {
     binaryScores = new double[numLabels][][];
     unaryScores = new double[numLabels][][];
     binaryRuleNum = new int[numLabels][][];
     binaryK = new int[numLabels][][];
-    unaryChild = new int[numLabels][][];
+    unaryChild = new UnaryRule[numLabels][][];
     initTable(unaryScores, size);
     initTable(binaryScores, size);
     initTable(binaryRuleNum, size);
@@ -88,6 +92,16 @@ class GenerativeParser implements Parser {
       for (int i = 0; i < size; i++) {
         page[i] = new int[size - i];
         Arrays.fill(page[i], -1);
+      }
+    }
+  }
+
+  void initTable(UnaryRule[][][] table, int size) {
+    for (int x = 0; x < numLabels; x++) {
+      UnaryRule [][] page = new UnaryRule[size][];
+      table[x] = page;
+      for (int i = 0; i < size; i++) {
+        page[i] = new UnaryRule[size - i];
       }
     }
   }
@@ -152,14 +166,14 @@ class GenerativeParser implements Parser {
             s += binaryScores[child][i][j];
             if (s > max) {
               max = s;
-              unaryChild[x][i][j] = rule.getChild();
+              unaryChild[x][i][j] = rule;
             }
           }
           if (!selfLooped) {
             s = binaryScores[x][i][j];
             if (s > max) {
               max = s;
-              unaryChild[x][i][j] = x;
+              unaryChild[x][i][j] = null;
             }
           }
           unaryScores[x][i][j] = max;
@@ -186,22 +200,27 @@ class GenerativeParser implements Parser {
   }
 
   Tree<String> unaryTree(int x, int i, int j) {
-    int child = unaryChild[x][i][j];
+    UnaryRule rule = unaryChild[x][i][j];
+    int child = rule == null ? x : rule.getChild();
+    Tree<String> tree;
 
     if (i + j == length - 1) {
       List<Tree<String>> word = Collections.singletonList(new Tree<String>(currentSentence.get(i)));
-      if (child == x) {
-        return new Tree<String>(indexer.get(x), word);
-      } else {
-        return new Tree<String>(indexer.get(x), Collections.singletonList(new Tree<String>(indexer.get(child), word)));
-      }
+      tree = new Tree<String>(indexer.get(child), word);
+    } else {
+      tree = binaryTree(child, i, j);
     }
 
-    if (child == x) {
-      return binaryTree(x, i, j);
-    } else {
-      return new Tree<String>(indexer.get(x), Collections.singletonList(binaryTree(child, i, j)));
+    if (child == x) return tree;
+
+    List<Integer> path = unaryClosure.getPath(rule);
+    assert path.get(path.size() - 1) == child;
+    for (int k = path.size() - 2; k >= 0; k--) {
+      int tag = path.get(k);
+      tree = new Tree<String>(indexer.get(tag), Collections.singletonList(tree));
     }
+    assert path.get(0) == x;
+    return tree;
   }
 
   Tree<String> binaryTree(int x, int i, int j) {
@@ -215,7 +234,6 @@ class GenerativeParser implements Parser {
     return new Tree<String>(indexer.get(x), children);
   }
 
-  boolean TEST = false;
   void test() {
     String raw = "Odds and Ends";
     List<String> sentence = Arrays.asList(raw.split(" "));
