@@ -57,23 +57,31 @@ class CoarseToFineParser implements Parser {
     }
   }
 
-  double [][][] binaryScores;
-  double [][][] unaryScores;
+  double [][][] coarseBinaryScores;
+  double [][][] coarseUnaryScores;
+
+  double [][][] fineBinaryScores;
+  double [][][] fineUnaryScores;
   int [][][] binaryRuleNum;
   int [][][] binaryK;
-  UnaryRule [][][] unaryChild;
+  UnaryRule [][][] unaryRuleBackpointers;
 
   void initTables(int size) {
-    binaryScores = new double[numFineLabels][][];
-    unaryScores = new double[numFineLabels][][];
+    coarseBinaryScores = new double[numCoarseLabels][][];
+    coarseUnaryScores = new double[numCoarseLabels][][];
+    initTable(coarseBinaryScores, size);
+    initTable(coarseUnaryScores, size);
+
+    fineBinaryScores = new double[numFineLabels][][];
+    fineUnaryScores = new double[numFineLabels][][];
     binaryRuleNum = new int[numFineLabels][][];
     binaryK = new int[numFineLabels][][];
-    unaryChild = new UnaryRule[numFineLabels][][];
-    initTable(unaryScores, size);
-    initTable(binaryScores, size);
+    unaryRuleBackpointers = new UnaryRule[numFineLabels][][];
+    initTable(fineUnaryScores, size);
+    initTable(fineBinaryScores, size);
     initTable(binaryRuleNum, size);
     initTable(binaryK, size);
-    initTable(unaryChild, size);
+    initTable(unaryRuleBackpointers, size);
   }
 
   void initTable(double[][][] table, int size) {
@@ -114,16 +122,79 @@ class CoarseToFineParser implements Parser {
     length = sentence.size();
     initTables(length);
 
+    for (int x = 0; x < numCoarseLabels; x++) {
+      String transformedLabel = coarseIndexer.get(x);
+
+      double [][] labelTable = coarseBinaryScores[x];
+      for (int j = 0; j < length; j++) {
+        double s = coarseLexicon.scoreTagging(sentence.get(j), transformedLabel);
+        if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
+        labelTable[j][length-j-1] = s;
+      }
+    }
+
+    for (int sum = length - 1; sum >= 0; sum--) {
+      for (int i = 0; i <= sum; i++) {
+        int j = sum - i;
+        double s, ruleScore, max;
+
+        for (int x = 0; x < numCoarseLabels; x++) {
+          max = Double.NEGATIVE_INFINITY;
+          if (sum != length - 1) {
+            for (BinaryRule rule : coarseGrammar.getBinaryRulesByParent(x)) {
+              ruleScore = rule.getScore();
+              assert length - j > i + 1;
+              for (int k = i + 1; k < length - j; k++) {
+                s = ruleScore;
+                assert ruleScore <= 0;
+                s += coarseUnaryScores[rule.getLeftChild()][i][length - k];
+                s += coarseUnaryScores[rule.getRightChild()][k][j];
+                if (s > max) {
+                  max = s;
+                }
+              }
+            }
+            coarseBinaryScores[x][i][j] = max;
+          }
+        }
+
+        for (int x = 0; x < numCoarseLabels; x++) {
+          max = Double.NEGATIVE_INFINITY;
+          boolean selfLooped = false;
+          for (UnaryRule rule : coarseUnaryClosure.getClosedUnaryRulesByParent(x)) {
+            int child = rule.getChild();
+            if (child == x) selfLooped = true;
+            s = rule.getScore();
+            s += coarseBinaryScores[child][i][j];
+            if (s > max) {
+              max = s;
+            }
+          }
+          if (!selfLooped) {
+            s = coarseBinaryScores[x][i][j];
+            if (s > max) {
+              max = s;
+            }
+          }
+          coarseUnaryScores[x][i][j] = max;
+        }
+      }
+    }
+
+
+
+
+
+
+
+
     for (int x = 0; x < numFineLabels; x++) {
       String transformedLabel = fineIndexer.get(x);
 
-      double [][] labelTable = binaryScores[x];
+      double [][] labelTable = fineBinaryScores[x];
       for (int j = 0; j < length; j++) {
         double s = fineLexicon.scoreTagging(sentence.get(j), transformedLabel);
         if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
-//        if (s != Double.NEGATIVE_INFINITY) {
-//          System.out.println(sentence.get(j) + " " + transformedLabel);
-//        }
         labelTable[j][length-j-1] = s;
       }
     }
@@ -143,8 +214,8 @@ class CoarseToFineParser implements Parser {
               for (int k = i + 1; k < length - j; k++) {
                 s = ruleScore;
                 assert ruleScore <= 0;
-                s += unaryScores[rule.getLeftChild()][i][length - k];
-                s += unaryScores[rule.getRightChild()][k][j];
+                s += fineUnaryScores[rule.getLeftChild()][i][length - k];
+                s += fineUnaryScores[rule.getRightChild()][k][j];
                 if (s > max) {
                   max = s;
                   binaryRuleNum[x][i][j] = ruleNum;
@@ -154,7 +225,7 @@ class CoarseToFineParser implements Parser {
               ruleNum++;
             }
             assert max == Double.NEGATIVE_INFINITY || binaryRuleNum[x][i][j] != -1;
-            binaryScores[x][i][j] = max;
+            fineBinaryScores[x][i][j] = max;
           }
         }
 
@@ -165,34 +236,34 @@ class CoarseToFineParser implements Parser {
             int child = rule.getChild();
             if (child == x) selfLooped = true;
             s = rule.getScore();
-            s += binaryScores[child][i][j];
+            s += fineBinaryScores[child][i][j];
             if (s > max) {
               max = s;
-              unaryChild[x][i][j] = rule;
+              unaryRuleBackpointers[x][i][j] = rule;
             }
           }
           if (!selfLooped) {
-            s = binaryScores[x][i][j];
+            s = fineBinaryScores[x][i][j];
             if (s > max) {
               max = s;
-              unaryChild[x][i][j] = null;
+              unaryRuleBackpointers[x][i][j] = null;
             }
           }
-          unaryScores[x][i][j] = max;
+          fineUnaryScores[x][i][j] = max;
         }
       }
     }
 
 //    for (int x = 0; x < numFineLabels; x++) {
 //      System.out.println(x + ": " + fineIndexer.get(x));
-//      printArray(unaryScores[x]);
-//      printArray(binaryScores[x]);
+//      printArray(fineUnaryScores[x]);
+//      printArray(fineBinaryScores[x]);
 //    }
 
-//    System.out.println("score = " + unaryScores[0][0][0]);
+//    System.out.println("score = " + fineUnaryScores[0][0][0]);
 
     Tree<String> ret;
-    if (unaryScores[0][0][0] == Double.NEGATIVE_INFINITY) {
+    if (fineUnaryScores[0][0][0] == Double.NEGATIVE_INFINITY) {
       ret = new Tree<String>("ROOT", Collections.singletonList(new Tree<String>("JUNK")));
     } else {
       ret = unaryTree(0, 0, 0);
@@ -202,7 +273,7 @@ class CoarseToFineParser implements Parser {
   }
 
   Tree<String> unaryTree(int x, int i, int j) {
-    UnaryRule rule = unaryChild[x][i][j];
+    UnaryRule rule = unaryRuleBackpointers[x][i][j];
     int child = rule == null ? x : rule.getChild();
     Tree<String> tree;
 
@@ -227,7 +298,7 @@ class CoarseToFineParser implements Parser {
 
   Tree<String> binaryTree(int x, int i, int j) {
     int ruleNum = binaryRuleNum[x][i][j];
-    assert ruleNum != -1 : binaryScores[x][i][j];
+    assert ruleNum != -1 : fineBinaryScores[x][i][j];
     int k = binaryK[x][i][j];
     BinaryRule rule = fineGrammar.getBinaryRulesByParent(x).get(ruleNum);
     ArrayList<Tree<String>> children = new ArrayList<Tree<String>>();
