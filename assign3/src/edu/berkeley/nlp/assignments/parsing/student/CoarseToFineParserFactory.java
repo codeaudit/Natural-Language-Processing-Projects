@@ -32,7 +32,7 @@ class CoarseToFineParser implements Parser {
   List<String> currentSentence;
   int numFineLabels, numCoarseLabels;
   int length;
-  boolean TEST = true;
+  boolean TEST = false;
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
@@ -44,7 +44,7 @@ class CoarseToFineParser implements Parser {
 
       newTree = CoarseAnnotator.annotateTree(tree);
       coarseTrees.add(newTree);
-      System.out.println(Trees.PennTreeRenderer.render(newTree));
+      if (TEST) System.out.println(Trees.PennTreeRenderer.render(newTree));
     }
     assert fineTrees.size() > 0 : "No training trees";
 
@@ -63,9 +63,29 @@ class CoarseToFineParser implements Parser {
     assert coarseIndexer.get(0).equals("ROOT");
     assert fineIndexer.get(0).equals("ROOT");
 
+    generateFineToCoarseMap();
+
     if (TEST) {
       test("Odds and Ends");
       System.exit(0);
+    }
+  }
+
+  int[] fineToCoarseMap;
+  void generateFineToCoarseMap() {
+    fineToCoarseMap = new int[numFineLabels];
+    for (int x = 0; x < numFineLabels; x++) {
+      String fineLabel = fineIndexer.get(x);
+      int index = fineLabel.indexOf('>') + 1;
+      if (index == 0) {
+        index = fineLabel.indexOf('^');
+      } else {
+        assert fineLabel.indexOf('^') == -1;
+      }
+      String coarseLabel = index == -1 ? fineLabel : fineLabel.substring(0, index);
+      int coarseIndex = coarseIndexer.indexOf(coarseLabel);
+      assert coarseIndex != -1 : fineLabel;
+      fineToCoarseMap[x] = coarseIndex;
     }
   }
 
@@ -264,8 +284,8 @@ class CoarseToFineParser implements Parser {
 
 //    for (int x = 0; x < numCoarseLabels; x++) {
 //      System.out.println(x + ": " + coarseIndexer.get(x));
-//      printArray(coarseUnaryScores[x]);
-//      printArray(coarseBinaryScores[x]);
+//      printArray(coarseUnaryOutside[x]);
+//      printArray(coarseBinaryOutside[x]);
 //    }
 
 
