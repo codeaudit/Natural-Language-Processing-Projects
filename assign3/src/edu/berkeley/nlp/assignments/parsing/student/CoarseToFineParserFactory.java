@@ -51,6 +51,9 @@ class CoarseToFineParser implements Parser {
     coarseUnaryClosure = new UnaryClosure(coarseIndexer, coarseGrammar.getUnaryRules());
     numCoarseLabels = coarseIndexer.size();
 
+    assert coarseIndexer.get(0).equals("ROOT");
+    assert fineIndexer.get(0).equals("ROOT");
+
     if (TEST) {
       test();
       System.exit(0);
@@ -142,7 +145,7 @@ class CoarseToFineParser implements Parser {
     for (int sum = length - 1; sum >= 0; sum--) {
       for (int i = 0; i <= sum; i++) {
         int j = sum - i;
-        double s, ruleScore, max;
+        double score, ruleScore, max;
 
         for (int x = 0; x < numCoarseLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
@@ -151,12 +154,12 @@ class CoarseToFineParser implements Parser {
               ruleScore = rule.getScore();
               assert length - j > i + 1;
               for (int k = i + 1; k < length - j; k++) {
-                s = ruleScore;
+                score = ruleScore;
                 assert ruleScore <= 0;
-                s += coarseUnaryScores[rule.getLeftChild()][i][length - k];
-                s += coarseUnaryScores[rule.getRightChild()][k][j];
-                if (s > max) {
-                  max = s;
+                score += coarseUnaryScores[rule.getLeftChild()][i][length - k];
+                score += coarseUnaryScores[rule.getRightChild()][k][j];
+                if (score > max) {
+                  max = score;
                 }
               }
             }
@@ -170,16 +173,16 @@ class CoarseToFineParser implements Parser {
           for (UnaryRule rule : coarseUnaryClosure.getClosedUnaryRulesByParent(x)) {
             int child = rule.getChild();
             if (child == x) selfLooped = true;
-            s = rule.getScore();
-            s += coarseBinaryScores[child][i][j];
-            if (s > max) {
-              max = s;
+            score = rule.getScore();
+            score += coarseBinaryScores[child][i][j];
+            if (score > max) {
+              max = score;
             }
           }
           if (!selfLooped) {
-            s = coarseBinaryScores[x][i][j];
-            if (s > max) {
-              max = s;
+            score = coarseBinaryScores[x][i][j];
+            if (score > max) {
+              max = score;
             }
           }
           coarseUnaryScores[x][i][j] = max;
@@ -188,8 +191,45 @@ class CoarseToFineParser implements Parser {
     }
 
 
+    coarseUnaryOutside[0][0][0] = 0;
+    // remove this and make it all -infinity during init, NaN during debugging
+    for (int x = 1; x < numCoarseLabels; x++) {
+      coarseUnaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
+      coarseBinaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
+    }
+    for (UnaryRule rule : coarseUnaryClosure.getClosedUnaryRulesByParent(0)) {
+      coarseBinaryOutside[rule.getChild()][0][0] = rule.getScore();
+    }
+
+    for (int sum = 1; sum < length; sum++) {
+      for (int i = 0; i <= sum; i++) {
+        int j = sum - i;
+        double score, max;
+
+        for (int x = 0; x < numCoarseLabels; x++) {
+          max = Double.NEGATIVE_INFINITY;
+
+        }
 
 
+        for (int x = 0; x < numCoarseLabels; x++) {
+          max = Double.NEGATIVE_INFINITY;
+          boolean selfLooped = false;
+          for (UnaryRule rule : coarseUnaryClosure.getClosedUnaryRulesByChild(x)) {
+            int parent = rule.getParent();
+            if (parent == x) selfLooped = true;
+            score = rule.getScore();
+            score += coarseUnaryOutside[parent][i][j];
+            max = Math.max(max, score);
+          }
+          if (!selfLooped) {
+            score = coarseUnaryOutside[x][i][j];
+            max = Math.max(max, score);
+          }
+          coarseBinaryOutside[x][i][j] = max;
+        }
+      }
+    }
 
 
 
@@ -208,7 +248,7 @@ class CoarseToFineParser implements Parser {
     for (int sum = length - 1; sum >= 0; sum--) {
       for (int i = 0; i <= sum; i++) {
         int j = sum - i;
-        double s, ruleScore, max;
+        double score, ruleScore, max;
 
         for (int x = 0; x < numFineLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
@@ -218,12 +258,12 @@ class CoarseToFineParser implements Parser {
               ruleScore = rule.getScore();
               assert length - j > i + 1;
               for (int k = i + 1; k < length - j; k++) {
-                s = ruleScore;
+                score = ruleScore;
                 assert ruleScore <= 0;
-                s += fineUnaryScores[rule.getLeftChild()][i][length - k];
-                s += fineUnaryScores[rule.getRightChild()][k][j];
-                if (s > max) {
-                  max = s;
+                score += fineUnaryScores[rule.getLeftChild()][i][length - k];
+                score += fineUnaryScores[rule.getRightChild()][k][j];
+                if (score > max) {
+                  max = score;
                   binaryRuleNum[x][i][j] = ruleNum;
                   binaryK[x][i][j] = k;
                 }
@@ -241,17 +281,17 @@ class CoarseToFineParser implements Parser {
           for (UnaryRule rule : fineUnaryClosure.getClosedUnaryRulesByParent(x)) {
             int child = rule.getChild();
             if (child == x) selfLooped = true;
-            s = rule.getScore();
-            s += fineBinaryScores[child][i][j];
-            if (s > max) {
-              max = s;
+            score = rule.getScore();
+            score += fineBinaryScores[child][i][j];
+            if (score > max) {
+              max = score;
               unaryRuleBackpointers[x][i][j] = rule;
             }
           }
           if (!selfLooped) {
-            s = fineBinaryScores[x][i][j];
-            if (s > max) {
-              max = s;
+            score = fineBinaryScores[x][i][j];
+            if (score > max) {
+              max = score;
               unaryRuleBackpointers[x][i][j] = null;
             }
           }
