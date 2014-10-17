@@ -282,6 +282,10 @@ class CoarseToFineParser implements Parser {
       }
     }
 
+    final double denominator = -coarseUnaryScores[0][0][0];
+    assert denominator != Double.POSITIVE_INFINITY;
+    final double CELL_THRESH = -7;
+
 //    for (int x = 0; x < numCoarseLabels; x++) {
 //      System.out.println(x + ": " + coarseIndexer.get(x));
 //      printArray(coarseUnaryOutside[x]);
@@ -303,9 +307,18 @@ class CoarseToFineParser implements Parser {
     for (int sum = length - 1; sum >= 0; sum--) {
       for (int i = 0; i <= sum; i++) {
         int j = sum - i;
-        double score, ruleScore, max;
+        double score, ruleScore, max, coarseScore;
 
         for (int x = 0; x < numFineLabels; x++) {
+          int coarseX = fineToCoarseMap[x];
+          coarseScore = denominator;
+          coarseScore += coarseBinaryScores[coarseX][i][j];
+          coarseScore += coarseBinaryOutside[coarseX][i][j];
+          if (coarseScore <= CELL_THRESH) {
+            fineBinaryScores[x][i][j] = Double.NEGATIVE_INFINITY; // Remove after NaN convert
+            continue;
+          }
+
           max = Double.NEGATIVE_INFINITY;
           if (sum != length - 1) {
             int ruleNum = 0;
@@ -331,6 +344,15 @@ class CoarseToFineParser implements Parser {
         }
 
         for (int x = 0; x < numFineLabels; x++) {
+          int coarseX = fineToCoarseMap[x];
+          coarseScore = denominator;
+          coarseScore += coarseUnaryScores[coarseX][i][j];
+          coarseScore += coarseBinaryOutside[coarseX][i][j];
+          if (coarseScore <= CELL_THRESH) {
+            fineUnaryScores[x][i][j] = Double.NEGATIVE_INFINITY;
+            continue;
+          }
+
           max = Double.NEGATIVE_INFINITY;
           boolean selfLooped = false;
           for (UnaryRule rule : fineUnaryClosure.getClosedUnaryRulesByParent(x)) {

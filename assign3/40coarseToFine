@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+ant -f build_assign_parsing.xml
+java -cp assign_parsing.jar:assign_parsing-submit.jar -server -mx2000m edu.berkeley.nlp.assignments.parsing.PCFGParserTester -path wsj -parserType COARSE_TO_FINE -maxTrainLength 40 -maxTestLength 40
