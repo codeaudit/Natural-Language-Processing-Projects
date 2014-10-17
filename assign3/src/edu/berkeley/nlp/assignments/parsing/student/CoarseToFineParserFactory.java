@@ -5,8 +5,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import edu.berkeley.nlp.assignments.parsing.*;
+import edu.berkeley.nlp.assignments.parsing.SimpleLexicon;
+import edu.berkeley.nlp.assignments.parsing.ParserFactory;
+import edu.berkeley.nlp.assignments.parsing.Parser;
+import edu.berkeley.nlp.assignments.parsing.UnaryClosure;
+import edu.berkeley.nlp.assignments.parsing.UnaryRule;
+import edu.berkeley.nlp.assignments.parsing.BinaryRule;
+import edu.berkeley.nlp.assignments.parsing.TreeAnnotations;
 import edu.berkeley.nlp.ling.Tree;
+import edu.berkeley.nlp.ling.Trees;
 import edu.berkeley.nlp.util.Indexer;
 
 
@@ -25,17 +32,19 @@ class CoarseToFineParser implements Parser {
   List<String> currentSentence;
   int numFineLabels, numCoarseLabels;
   int length;
-  boolean TEST = false;
+  boolean TEST = true;
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
     ArrayList<Tree<String>> coarseTrees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
+      if (TEST && !Trees.PennTreeRenderer.render(tree).contains("Odds")) continue;
       Tree<String> newTree = FineAnnotator.annotateTree(tree);
       fineTrees.add(newTree);
 
       newTree = CoarseAnnotator.annotateTree(tree);
       coarseTrees.add(newTree);
+      System.out.println(Trees.PennTreeRenderer.render(newTree));
     }
     assert fineTrees.size() > 0 : "No training trees";
 
@@ -55,7 +64,7 @@ class CoarseToFineParser implements Parser {
     assert fineIndexer.get(0).equals("ROOT");
 
     if (TEST) {
-      test();
+      test("Odds and Ends");
       System.exit(0);
     }
   }
@@ -191,12 +200,12 @@ class CoarseToFineParser implements Parser {
     }
 
 
-    coarseUnaryOutside[0][0][0] = 0;
     // remove this and make it all -infinity during init, NaN during debugging
-    for (int x = 1; x < numCoarseLabels; x++) {
+    for (int x = 0; x < numCoarseLabels; x++) {
       coarseUnaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
       coarseBinaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
     }
+    coarseUnaryOutside[0][0][0] = 0;
     for (UnaryRule rule : coarseUnaryClosure.getClosedUnaryRulesByParent(0)) {
       coarseBinaryOutside[rule.getChild()][0][0] = rule.getScore();
     }
@@ -204,11 +213,33 @@ class CoarseToFineParser implements Parser {
     for (int sum = 1; sum < length; sum++) {
       for (int i = 0; i <= sum; i++) {
         int j = sum - i;
-        double score, max;
+        double score, ruleScore, max;
 
         for (int x = 0; x < numCoarseLabels; x++) {
           max = Double.NEGATIVE_INFINITY;
-
+          for (BinaryRule rule: coarseGrammar.getBinaryRulesByRightChild(x)) {
+            ruleScore = rule.getScore();
+            int parent = rule.getParent();
+            int left = rule.getLeftChild();
+            for (int k = 0; k < i; k++) {
+              score = ruleScore;
+              score += coarseUnaryScores[left][k][length - i];
+              score += coarseBinaryOutside[parent][k][j];
+              max = Math.max(max, score);
+            }
+          }
+          for (BinaryRule rule: coarseGrammar.getBinaryRulesByLeftChild(x)) {
+            ruleScore = rule.getScore();
+            int parent = rule.getParent();
+            int right = rule.getRightChild();
+            for (int k = j - 1; k >= 0; k--) {
+              score = ruleScore;
+              score += coarseUnaryScores[right][length - j][k];
+              score += coarseBinaryOutside[parent][i][k];
+              max = Math.max(max, score);
+            }
+          }
+          coarseUnaryOutside[x][i][j] = max;
         }
 
 
@@ -231,7 +262,11 @@ class CoarseToFineParser implements Parser {
       }
     }
 
-
+//    for (int x = 0; x < numCoarseLabels; x++) {
+//      System.out.println(x + ": " + coarseIndexer.get(x));
+//      printArray(coarseUnaryScores[x]);
+//      printArray(coarseBinaryScores[x]);
+//    }
 
 
     for (int x = 0; x < numFineLabels; x++) {
@@ -353,8 +388,7 @@ class CoarseToFineParser implements Parser {
     return new Tree<String>(fineIndexer.get(x), children);
   }
 
-  void test() {
-    String raw = "Odds and Ends";
+  void test(String raw) {
     List<String> sentence = Arrays.asList(raw.split(" "));
     System.out.println(getBestParse(sentence));
   }
