@@ -59,6 +59,8 @@ class CoarseToFineParser implements Parser {
 
   double [][][] coarseBinaryScores;
   double [][][] coarseUnaryScores;
+  double [][][] coarseBinaryOutside;
+  double [][][] coarseUnaryOutside;
 
   double [][][] fineBinaryScores;
   double [][][] fineUnaryScores;
@@ -66,52 +68,56 @@ class CoarseToFineParser implements Parser {
   int [][][] binaryK;
   UnaryRule [][][] unaryRuleBackpointers;
 
-  void initTables(int size) {
+  void initTables() {
     coarseBinaryScores = new double[numCoarseLabels][][];
     coarseUnaryScores = new double[numCoarseLabels][][];
-    initTable(coarseBinaryScores, size);
-    initTable(coarseUnaryScores, size);
+    coarseBinaryOutside = new double[numCoarseLabels][][];
+    coarseUnaryOutside = new double[numCoarseLabels][][];
+    initTable(coarseBinaryScores, numCoarseLabels);
+    initTable(coarseUnaryScores, numCoarseLabels);
+    initTable(coarseBinaryOutside, numCoarseLabels);
+    initTable(coarseUnaryOutside, numCoarseLabels);
 
     fineBinaryScores = new double[numFineLabels][][];
     fineUnaryScores = new double[numFineLabels][][];
     binaryRuleNum = new int[numFineLabels][][];
     binaryK = new int[numFineLabels][][];
     unaryRuleBackpointers = new UnaryRule[numFineLabels][][];
-    initTable(fineUnaryScores, size);
-    initTable(fineBinaryScores, size);
-    initTable(binaryRuleNum, size);
-    initTable(binaryK, size);
-    initTable(unaryRuleBackpointers, size);
+    initTable(fineUnaryScores, numFineLabels);
+    initTable(fineBinaryScores, numFineLabels);
+    initTable(binaryRuleNum, numFineLabels);
+    initTable(binaryK, numFineLabels);
+    initTable(unaryRuleBackpointers, numFineLabels);
   }
 
   void initTable(double[][][] table, int size) {
-    for (int x = 0; x < numFineLabels; x++) {
-      double [][] page = new double[size][];
+    for (int x = 0; x < size; x++) {
+      double [][] page = new double[length][];
       table[x] = page;
-      for (int i = 0; i < size; i++) {
-        page[i] = new double[size - i];
+      for (int i = 0; i < length; i++) {
+        page[i] = new double[length - i];
         Arrays.fill(page[i], Double.NaN);
       }
     }
   }
 
   void initTable(int[][][] table, int size) {
-    for (int x = 0; x < numFineLabels; x++) {
-      int [][] page = new int[size][];
+    for (int x = 0; x < size; x++) {
+      int [][] page = new int[length][];
       table[x] = page;
-      for (int i = 0; i < size; i++) {
-        page[i] = new int[size - i];
+      for (int i = 0; i < length; i++) {
+        page[i] = new int[length - i];
         Arrays.fill(page[i], -1);
       }
     }
   }
 
   void initTable(UnaryRule[][][] table, int size) {
-    for (int x = 0; x < numFineLabels; x++) {
-      UnaryRule [][] page = new UnaryRule[size][];
+    for (int x = 0; x < size; x++) {
+      UnaryRule [][] page = new UnaryRule[length][];
       table[x] = page;
-      for (int i = 0; i < size; i++) {
-        page[i] = new UnaryRule[size - i];
+      for (int i = 0; i < length; i++) {
+        page[i] = new UnaryRule[length - i];
       }
     }
   }
@@ -120,7 +126,7 @@ class CoarseToFineParser implements Parser {
 //    System.out.println("sentence = " + sentence);
     currentSentence = sentence;
     length = sentence.size();
-    initTables(length);
+    initTables();
 
     for (int x = 0; x < numCoarseLabels; x++) {
       String transformedLabel = coarseIndexer.get(x);
