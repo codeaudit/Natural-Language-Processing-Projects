@@ -32,19 +32,19 @@ class CoarseToFineParser implements Parser {
   List<String> currentSentence;
   int numFineLabels, numCoarseLabels;
   int length;
-  boolean TEST = true;
+  boolean TEST = false; //TODO: Remove test code
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
     ArrayList<Tree<String>> coarseTrees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
-      if (TEST && !Trees.PennTreeRenderer.render(tree).contains("Odds")) continue;
+      // if (TEST && !Trees.PennTreeRenderer.render(tree).contains("Odds")) continue;
       Tree<String> newTree = FineAnnotator.annotateTree(tree);
       fineTrees.add(newTree);
+      if (TEST) System.out.println(Trees.PennTreeRenderer.render(newTree));
 
       newTree = CoarseAnnotator.annotateTree(tree);
       coarseTrees.add(newTree);
-      if (TEST) System.out.println(Trees.PennTreeRenderer.render(newTree));
     }
     assert fineTrees.size() > 0 : "No training trees";
 

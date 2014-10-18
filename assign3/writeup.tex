@@ -61,6 +61,12 @@ These optimizations are only for the coarse to fine parser and are not back port
 generative parser.
 
 \subsection{Increasing Vertical Markovization Order}
-Klein and Manning 03 suggests that increased vertical order produces better F1.
+Klein and Manning 03 suggests that increased vertical order produces better F1, so grandparent
+annotations were added to increase $v$ to 3. On the length 40 set, this increased F1 to 79.93
+at a cost of increasing running time to 932 seconds due to a large increase in grammar size.
+However, the amount of time did not increase as much relative to the grammar size thanks to
+coarse to fine pruning.
+
+
 
 \end{document}
