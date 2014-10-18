@@ -17,6 +17,9 @@ class FineAnnotator
     parentLabel = parentLabel + (parent2.isEmpty() ? "" : "^" + parent2);
     if (tree.isLeaf()) return new Tree<String>(label);
     if (tree.getChildren().size() == 1) {
+      if (!tree.isPreTerminal() && !label.equals("ROOT")) {
+        parentLabel = parentLabel + "-U";
+      }
       return new Tree<String>(label + parentLabel, Collections.singletonList(
               binarizeTree(tree.getChildren().get(0), label, parent)
       ));
