@@ -40,7 +40,7 @@ class FineAnnotator
       children.add(rightTree);
     }
     return new Tree<String>(
-            labelHeader + (prev2.isEmpty() ? "" : ".." + prev2) + (prev.isEmpty() ? "" : "_" + prev),
+            labelHeader + (prev2.isEmpty() ? "" : "_" + prev2) + (prev.isEmpty() ? "" : "_" + prev),
             children);
   }
 }

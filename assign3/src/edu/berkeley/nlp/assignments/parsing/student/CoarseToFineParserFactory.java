@@ -15,6 +15,7 @@ import edu.berkeley.nlp.assignments.parsing.TreeAnnotations;
 import edu.berkeley.nlp.ling.Tree;
 import edu.berkeley.nlp.ling.Trees;
 import edu.berkeley.nlp.util.Indexer;
+import edu.berkeley.nlp.util.Counter;
 
 
 public class CoarseToFineParserFactory implements ParserFactory {
@@ -32,6 +33,10 @@ class CoarseToFineParser implements Parser {
   List<String> currentSentence;
   int numFineLabels, numCoarseLabels;
   int length;
+
+  final static double CELL_THRESH = -7;
+  final static double MIN_OCCURENCES = 10d;
+
   boolean TEST = false; //TODO: Remove test code
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
@@ -47,6 +52,8 @@ class CoarseToFineParser implements Parser {
       coarseTrees.add(newTree);
     }
     assert fineTrees.size() > 0 : "No training trees";
+
+    collapseTrees(fineTrees);
 
     fineLexicon = new SimpleLexicon(fineTrees);
     fineGrammar = Grammar.generativeGrammarFromTrees(fineTrees);
@@ -72,7 +79,7 @@ class CoarseToFineParser implements Parser {
   }
 
   int[] fineToCoarseMap;
-  void generateFineToCoarseMap() { // TODO: Orianna's caching scheme thing
+  private void generateFineToCoarseMap() { // TODO: Orianna's caching scheme thing
     fineToCoarseMap = new int[numFineLabels];
     for (int x = 0; x < numFineLabels; x++) {
       String fineLabel = fineIndexer.get(x);
@@ -86,6 +93,48 @@ class CoarseToFineParser implements Parser {
       int coarseIndex = coarseIndexer.indexOf(coarseLabel);
       assert coarseIndex != -1 : fineLabel;
       fineToCoarseMap[x] = coarseIndex;
+    }
+  }
+
+  private void collapseTrees(ArrayList<Tree<String>> trees) {
+    Counter<String> counter = new Counter<String>();
+    for (Tree<String> tree : trees) {
+      tallyTree(counter, tree);
+    }
+    for (Tree<String> tree : trees) {
+      collapseTree(counter, tree);
+    }
+  }
+
+  private void tallyTree(Counter<String> counter, Tree<String> tree) {
+    if (tree.isLeaf()) return;
+    if (tree.isPreTerminal()) return;
+    assert tree.getChildren().size() <= 2;
+    counter.incrementCount(tree.getLabel(), 1.0);
+    for (Tree<String> child : tree.getChildren()) {
+      tallyTree(counter, child);
+    }
+  }
+
+  private void collapseTree(Counter<String> counter, Tree<String> tree) {
+    if (tree.isLeaf()) return;
+    if (tree.isPreTerminal()) return;
+
+    String label = tree.getLabel();
+    if (counter.getCount(label) < MIN_OCCURENCES) {
+      int index = label.indexOf('_');
+      int next = label.indexOf('_', index + 1);
+      if (index != -1) {
+        String newLabel = label.substring(0, index);
+        if (next != -1) {
+          newLabel += label.substring(next);
+        }
+        tree.setLabel(newLabel);
+      }
+    }
+
+    for (Tree<String> child : tree.getChildren()) {
+      collapseTree(counter, child);
     }
   }
 
@@ -284,7 +333,6 @@ class CoarseToFineParser implements Parser {
 
     final double denominator = -coarseUnaryScores[0][0][0];
     assert denominator != Double.POSITIVE_INFINITY;
-    final double CELL_THRESH = -7;
 
 //    for (int x = 0; x < numCoarseLabels; x++) {
 //      System.out.println(x + ": " + coarseIndexer.get(x));
