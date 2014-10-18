@@ -74,4 +74,11 @@ rules horizontally if it has been seen at least 10 times. Rules are still always
 This gives a new Markovization order of $h\leq 2$. With this improvement, F1 increased to 80.0
 and the reduced number of grammar rules cut the running time back down to 749 seconds.
 
+\subsection{Additional Annotations}
+Many of the remaining mistakes are caused by the grammar using the same tag for different contexts
+that should get their own tag. To address this, more annotations are added to produce a finer grammar.
+First, the \texttt{UNARY INTERNAL} mark was added to non-preterminal non-root unary nodes,
+which increased F1 to 80.52 and reduced running time to 687 seconds. 
+
+
 \end{document}

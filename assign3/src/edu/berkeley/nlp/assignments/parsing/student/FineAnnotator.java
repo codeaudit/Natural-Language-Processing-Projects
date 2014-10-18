@@ -20,6 +20,10 @@ class FineAnnotator
       if (!tree.isPreTerminal() && !label.equals("ROOT")) {
         parentLabel = parentLabel + "-U";
       }
+      Tree<String> child = tree.getChildren().get(0);
+      if (child.getLabel().equals("RB") || child.getLabel().equals("DT")) {
+        parent = parent + "^U";
+      }
       return new Tree<String>(label + parentLabel, Collections.singletonList(
               binarizeTree(tree.getChildren().get(0), label, parent)
       ));
