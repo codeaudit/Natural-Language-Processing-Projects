@@ -1,0 +1,66 @@
+
+\documentclass[11pt]{article}
+\usepackage{acl2014}
+\usepackage{times}
+\usepackage{url}
+\usepackage{latexsym}
+\usepackage{graphicx}
+
+\title{CS 288: Parsing}
+
+\author{Anting Shen \\
+  23566738 \\
+  {\tt antingshen@berkeley.edu} \\
+}
+\date{October 17, 2014}
+
+\begin{document}
+\maketitle
+
+
+\section{Generative Parser}
+
+The generative parser uses a straightforward CKY algorithm. A grammar
+(from the provided Grammar class) is generated from annotated
+trees and a UnaryClosure class is used to collapse and re-expand chains of unary rules to allow
+application of a binary rule at every other step to prevent infinite unary chains. Each unary
+step also enforces addition of a reflexive rule to indicate a lack of unary rule at that step.
+
+The tree annotator uses $v=2, h=2$ vertical and horizontal markovization, which showed considerable
+F1 improvement over the $v=1, h=\infty$ default, with most of the improvement being from the
+switch from $v=1$ to $v=2$, and a smaller improvement from $h=\infty$ to $h=2$.
+
+The CKY tables needed for bottom-up CKY are implemented as three dimensional double arrays, one for
+unary and one for binary. Backpointers are kept in a separate same sized array to save memory of
+creating a wrapper object and provide memory locality when performing score lookups. Backpointers
+consist of the rule used at that cell, and the split point $k$ for binary rules. Helper functions
+recursively reconstruct the tree at the end of parsing, expanding UnaryClosures and ignoring reflexive
+rules.
+
+With this implementation on the max length 40 data set, the parser achieves an F1 of 79.0
+in 27 minutes on an i5-4670 processor.
+
+\section{Coarse to Fine Parser}
+
+The inside-outside algorithm is used to calculate probabilities of trees in the coarse grammar.
+A cell in the fine grammar's table is filled with negative infinity if the corresponding probability
+in the coarse grammar is below a threshold. The probability is calculated by
+$I(x,i,j)+O(x,i,j)-I(0,0,0)$, where $I$ and $O$ are inside and outside log probabilities, calculated
+using max instead of sum as an estimate due to difficulty of summing log probabilities.
+To find the corresponding coarse tag from a fine tag, a precomputed indexed mapping array is used.
+The coarse grammar is $v=1, h=0$, and its CKY tables are additional multidimensional arrays.
+
+Manual binary search was used to find a balanced threshold between F1 and speed at a log
+probability of -7.
+The parser achieves on the 40 length set a F1 of 78.53 in 751 seconds on the same processor,
+for a 2.16x speed-up.
+
+\section{Additional Optimizations}
+This section includes additional exploration and optimizations of both accuracy and performance.
+These optimizations are only for the coarse to fine parser and are not back ported to the
+generative parser.
+
+\subsection{Increasing Vertical Markovization Order}
+Klein and Manning 03 suggests that increased vertical order produces better F1.
+
+\end{document}

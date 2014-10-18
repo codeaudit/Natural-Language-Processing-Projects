@@ -32,7 +32,7 @@ class CoarseToFineParser implements Parser {
   List<String> currentSentence;
   int numFineLabels, numCoarseLabels;
   int length;
-  boolean TEST = false;
+  boolean TEST = true;
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
@@ -72,7 +72,7 @@ class CoarseToFineParser implements Parser {
   }
 
   int[] fineToCoarseMap;
-  void generateFineToCoarseMap() {
+  void generateFineToCoarseMap() { // TODO: Orianna's caching scheme thing
     fineToCoarseMap = new int[numFineLabels];
     for (int x = 0; x < numFineLabels; x++) {
       String fineLabel = fineIndexer.get(x);
@@ -220,7 +220,7 @@ class CoarseToFineParser implements Parser {
     }
 
 
-    // remove this and make it all -infinity during init, NaN during debugging
+    // TODO: remove this and make it all -infinity during init, NaN during debugging
     for (int x = 0; x < numCoarseLabels; x++) {
       coarseUnaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
       coarseBinaryOutside[x][0][0] = Double.NEGATIVE_INFINITY;
@@ -387,6 +387,7 @@ class CoarseToFineParser implements Parser {
 
     Tree<String> ret;
     if (fineUnaryScores[0][0][0] == Double.NEGATIVE_INFINITY) {
+      // TODO: Re-run with higher threshold instead of returning junk
       ret = new Tree<String>("ROOT", Collections.singletonList(new Tree<String>("JUNK")));
     } else {
       ret = unaryTree(0, 0, 0);
