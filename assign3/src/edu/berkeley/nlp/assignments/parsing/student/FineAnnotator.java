@@ -7,6 +7,31 @@ import edu.berkeley.nlp.ling.Tree;
 
 class FineAnnotator
 {
+  static HashSet<String> INtags = new HashSet<String>();
+
+  static String rawPrepositions = "atop amongst toward beyond after aboard over toward among astride "
+          + "along underneath alongside throughout under behind amid near outside upon en "
+          + "across during below above between beneath post besides into nearest around beside "
+          + "inside down within ago out up through fiscal via save v. vs. versus towards de on past";
+  static String rawSubordinatingConjuctions = "than that though "
+          + "after although as because before in order that once since so that "
+          + "unless until when whenever where whereas wherever whether while";
+  static String rawExcept = "but pending lest except minus without albeit despite unlike plus";
+
+  static HashSet<String> prepositions = new HashSet<String>(Arrays.asList(rawPrepositions.split(" ")));
+  static HashSet<String> subordinatingConjuctions =
+          new HashSet<String>(Arrays.asList(rawSubordinatingConjuctions.split(" ")));
+  static HashSet<String> except = new HashSet<String>(Arrays.asList(rawExcept.split(" ")));
+
+  static String categorizeIN(String word) {
+    word = word.toLowerCase();
+    if (prepositions.contains(word)) return "INPREP";
+    if (subordinatingConjuctions.contains(word)) return "INSUBCON";
+    if (except.contains(word)) return "INEXCEPT";
+    INtags.add(word);
+    return word;
+  }
+
   static Tree<String> annotateTree(Tree<String> unannotated) {
     return binarizeTree(unannotated, "", "");
   }
@@ -24,10 +49,14 @@ class FineAnnotator
       if (child.getLabel().equals("RB") || child.getLabel().equals("DT")) {
         parent = parent + "^U";
       }
+      if (child.isLeaf() && tree.getLabel().equals("IN")) {
+        label = label + "^" + categorizeIN(child.getLabel());
+      }
       return new Tree<String>(label + parentLabel, Collections.singletonList(
               binarizeTree(tree.getChildren().get(0), label, parent)
       ));
     }
+    assert !tree.getLabel().equals("IN");
     // otherwise, it's a binary-or-more local tree, so decompose it into a sequence of binary and unary trees.
     String labelHeader = "@" + label + "->";
     Tree<String> intermediateTree = binarizeTreeHelper(tree, 0, labelHeader, "", "", label, parent);

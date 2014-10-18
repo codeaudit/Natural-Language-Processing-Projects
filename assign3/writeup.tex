@@ -31,7 +31,8 @@ F1 improvement over the $v=1, h=\infty$ default, with most of the improvement be
 switch from $v=1$ to $v=2$, and a smaller improvement from $h=\infty$ to $h=2$.
 
 The CKY tables needed for bottom-up CKY are implemented as three dimensional double arrays, one for
-unary and one for binary. Backpointers are kept in a separate same sized array to save memory of
+unary and one for binary, and with the array being triangular instead of square to prevent memory
+waste. Backpointers are kept in a separate same sized array to save memory of
 creating a wrapper object and provide memory locality when performing score lookups. Backpointers
 consist of the rule used at that cell, and the split point $k$ for binary rules. Helper functions
 recursively reconstruct the tree at the end of parsing, expanding UnaryClosures and ignoring reflexive
@@ -77,8 +78,21 @@ and the reduced number of grammar rules cut the running time back down to 749 se
 \subsection{Additional Annotations}
 Many of the remaining mistakes are caused by the grammar using the same tag for different contexts
 that should get their own tag. To address this, more annotations are added to produce a finer grammar.
-First, the \texttt{UNARY INTERNAL} mark was added to non-preterminal non-root unary nodes,
-which increased F1 to 80.52 and reduced running time to 687 seconds. 
+First, the \texttt{UNARY-INTERNAL} mark was added to non-preterminal non-root unary nodes,
+which increased F1 to 80.52 and reduced running time to 687 seconds. Adding \texttt{UNARY-RB} and
+\texttt{UNARY-DT} further improved F1 to 80.81 and cut time to 634 seconds.
+
+Splitting tags seemed like another possible addition. When \texttt{IN} tags were directly
+annotated with their respective words, i.e. lexicalized, F1 increased to 80.93, and time increased to
+740 seconds. However, this method splits the \texttt{IN} tag 170 different ways. A better approach
+would be to split based on linguistic categories like in Klein and Manning 03,
+but the does not explain in detail how \texttt{IN} tags were split. When I experimented with
+annotating with case-insensitive words to bring the split down to 97-way, F1 stayed at 80.91
+while time increased to 826 seconds. Then I experimented with splitting the words into groups
+such as prepositions and subordinating conjuctions, which resulted in a F1 of 80.89 and a time of
+683 seconds. The lackluster accuracy gain of tag splitting is most likely due to mistakes in
+categorizing the words, and getting better performance would require more linguistics experience.
+
 
 
 \end{document}

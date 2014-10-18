@@ -51,6 +51,9 @@ class CoarseToFineParser implements Parser {
       newTree = CoarseAnnotator.annotateTree(tree);
       coarseTrees.add(newTree);
     }
+//    System.out.println("FineAnnotator.INtags = " + FineAnnotator.INtags);
+//    System.out.println("FineAnnotator.INtags.size() = " + FineAnnotator.INtags.size());
+//    System.exit(0);
     assert fineTrees.size() > 0 : "No training trees";
 
     collapseTrees(fineTrees);
