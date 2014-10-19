@@ -1,5 +1,7 @@
 package edu.berkeley.nlp.assignments.parsing.student;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,13 +35,21 @@ class CoarseToFineParser implements Parser {
   int numFineLabels, numCoarseLabels;
   int length;
 
-  final static double CELL_THRESH = -7;
-  final static double MIN_OCCURENCES = 10d;
+  static double CELL_THRESH = -7;
+  final static double MIN_OCCURRENCES = 10d;
   final static int MAX_LENGTH = 40;
 
   boolean TEST = false; //TODO: Remove test code
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
+    String input;
+    try {
+      input = new BufferedReader(new FileReader("input.in")).readLine();
+    } catch (Exception e) {
+      input = "8";
+    }
+    CELL_THRESH = -(5 + Double.parseDouble(input) * 0.25);
+
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
     ArrayList<Tree<String>> coarseTrees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
@@ -75,7 +85,7 @@ class CoarseToFineParser implements Parser {
 
     generateFineToCoarseMap();
 
-    int fineTableSize = getFineIndex(numFineLabels-1, MAX_LENGTH-1, 0) + 1;
+    int fineTableSize = getFineIndex(numFineLabels - 1, MAX_LENGTH - 1, 0) + 1;
     fineBinaryScores = new double[fineTableSize];
     fineUnaryScores = new double[fineTableSize];
     binaryRuleNum = new int[fineTableSize];
@@ -138,7 +148,7 @@ class CoarseToFineParser implements Parser {
     if (tree.isPreTerminal()) return;
 
     String label = tree.getLabel();
-    if (counter.getCount(label) < MIN_OCCURENCES) {
+    if (counter.getCount(label) < MIN_OCCURRENCES) {
       int index = label.indexOf('_');
       int next = label.indexOf('_', index + 1);
       if (index != -1) {
@@ -203,7 +213,7 @@ class CoarseToFineParser implements Parser {
       for (int j = 0; j < length; j++) {
         double s = coarseLexicon.scoreTagging(sentence.get(j), transformedLabel);
         if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
-        coarseBinaryScores[getCoarseBottomIndex(x, j, length-j-1)] = s;
+        coarseBinaryScores[getCoarseBottomIndex(x, j, length - j - 1)] = s;
       }
     }
 
@@ -327,7 +337,7 @@ class CoarseToFineParser implements Parser {
       for (int j = 0; j < length; j++) {
         double s = fineLexicon.scoreTagging(sentence.get(j), transformedLabel);
         if (Double.isNaN(s)) s = Double.NEGATIVE_INFINITY;
-        fineBinaryScores[getFineBottomIndex(x, j, length-j-1)] = s;
+        fineBinaryScores[getFineBottomIndex(x, j, length - j - 1)] = s;
       }
     }
 

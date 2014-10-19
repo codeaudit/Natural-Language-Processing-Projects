@@ -1,0 +1,14 @@
+#!/bin/bash
+
+ant -f build_assign_parsing.xml
+rm result.out
+
+for i in {0..20}
+do
+    echo $i >> result.out
+    echo $i > input.in
+    java -cp assign_parsing.jar:assign_parsing-submit.jar -server -mx2000m \
+    edu.berkeley.nlp.assignments.parsing.PCFGParserTester -path wsj -parserType COARSE_TO_FINE \
+    -maxTrainLength 40 -maxTestLength 40 \
+    | tee /dev/tty | tail -n 2 >> result.out
+done
