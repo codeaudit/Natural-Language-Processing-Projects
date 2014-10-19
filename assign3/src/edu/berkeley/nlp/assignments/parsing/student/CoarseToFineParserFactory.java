@@ -35,35 +35,29 @@ class CoarseToFineParser implements Parser {
   int numFineLabels, numCoarseLabels;
   int length;
 
-  static double CELL_THRESH = -7;
-  final static double MIN_OCCURRENCES = 10d;
+  static double CELL_THRESH = -2;
+  static double MIN_OCCURRENCES = 10d;
   final static int MAX_LENGTH = 40;
-
-  boolean TEST = false; //TODO: Remove test code
 
   CoarseToFineParser(List<Tree<String>> trainTrees) {
     String input;
     try {
       input = new BufferedReader(new FileReader("input.in")).readLine();
     } catch (Exception e) {
-      input = "8";
+      input = "10";
     }
-    CELL_THRESH = -(5 + Double.parseDouble(input) * 0.25);
+    System.out.println("input = " + input);
+    MIN_OCCURRENCES = Double.parseDouble(input)*2;
 
     ArrayList<Tree<String>> fineTrees = new ArrayList<Tree<String>>();
     ArrayList<Tree<String>> coarseTrees = new ArrayList<Tree<String>>();
     for (Tree<String> tree : trainTrees) {
-      // if (TEST && !Trees.PennTreeRenderer.render(tree).contains("Odds")) continue;
       Tree<String> newTree = FineAnnotator.annotateTree(tree);
       fineTrees.add(newTree);
-//      if (TEST) System.out.println(Trees.PennTreeRenderer.render(newTree));
 
       newTree = CoarseAnnotator.annotateTree(tree);
       coarseTrees.add(newTree);
     }
-//    System.out.println("FineAnnotator.INtags = " + FineAnnotator.INtags);
-//    System.out.println("FineAnnotator.INtags.size() = " + FineAnnotator.INtags.size());
-//    System.exit(0);
     assert fineTrees.size() > 0 : "No training trees";
 
     collapseTrees(fineTrees);
@@ -98,15 +92,10 @@ class CoarseToFineParser implements Parser {
     coarseBinaryScores = new double[coarseTableSize];
     coarseUnaryScores = new double[coarseTableSize];
 
-
-    if (TEST) {
-      test("Odds and Ends");
-      System.exit(0);
-    }
   }
 
   int[] fineToCoarseMap;
-  private void generateFineToCoarseMap() { // TODO: Orianna's caching scheme thing
+  private void generateFineToCoarseMap() {
     fineToCoarseMap = new int[numFineLabels];
     for (int x = 0; x < numFineLabels; x++) {
       String fineLabel = fineIndexer.get(x);
@@ -232,6 +221,7 @@ class CoarseToFineParser implements Parser {
                 score = ruleScore;
                 assert ruleScore <= 0;
                 score += coarseUnaryScores[getCoarseBottomIndex(rule.getLeftChild(), i, length - k)];
+                if (score < max) continue;
                 score += coarseUnaryScores[getCoarseBottomIndex(rule.getRightChild(), k, j)];
                 if (score > max) {
                   max = score;
@@ -266,7 +256,6 @@ class CoarseToFineParser implements Parser {
     }
 
 
-    // TODO: remove this and make it all -infinity during init, NaN during debugging
     for (int x = 0; x < numCoarseLabels; x++) {
       coarseUnaryOutside[x] = Double.NEGATIVE_INFINITY;
       coarseBinaryOutside[x] = Double.NEGATIVE_INFINITY;
@@ -289,8 +278,9 @@ class CoarseToFineParser implements Parser {
             int left = rule.getLeftChild();
             for (int k = 0; k < i; k++) {
               score = ruleScore;
-              score += coarseUnaryScores[getCoarseBottomIndex(left, k, length - i)];
               score += coarseBinaryOutside[getCoarseIndex(parent, k, j)];
+              if (score < max) continue;
+              score += coarseUnaryScores[getCoarseBottomIndex(left, k, length - i)];
               max = Math.max(max, score);
             }
           }
@@ -300,8 +290,9 @@ class CoarseToFineParser implements Parser {
             int right = rule.getRightChild();
             for (int k = j - 1; k >= 0; k--) {
               score = ruleScore;
-              score += coarseUnaryScores[getCoarseBottomIndex(right, length - j, k)];
               score += coarseBinaryOutside[getCoarseIndex(parent, i, k)];
+              if (score < max) continue;
+              score += coarseUnaryScores[getCoarseBottomIndex(right, length - j, k)];
               max = Math.max(max, score);
             }
           }
@@ -350,9 +341,13 @@ class CoarseToFineParser implements Parser {
 
           int coarseX = fineToCoarseMap[x];
           coarseScore = denominator;
-          coarseScore += coarseBinaryScores[getCoarseBottomIndex(coarseX, i, j)];
           coarseScore += coarseBinaryOutside[getCoarseIndex(coarseX, i, j)];
-          if (coarseScore <= CELL_THRESH) {
+          if (coarseScore < CELL_THRESH) {
+            fineBinaryScores[getFineBottomIndex(x, i, j)] = Double.NEGATIVE_INFINITY;
+            continue;
+          }
+          coarseScore += coarseBinaryScores[getCoarseBottomIndex(coarseX, i, j)];
+          if (coarseScore < CELL_THRESH) {
             fineBinaryScores[getFineBottomIndex(x, i, j)] = Double.NEGATIVE_INFINITY;
             continue;
           }
@@ -367,6 +362,7 @@ class CoarseToFineParser implements Parser {
                 score = ruleScore;
                 assert ruleScore <= 0;
                 score += fineUnaryScores[getFineBottomIndex(rule.getLeftChild(), i, length - k)];
+                if (score < max) continue;
                 score += fineUnaryScores[getFineBottomIndex(rule.getRightChild(), k, j)];
                 if (score > max) {
                   max = score;
@@ -383,8 +379,12 @@ class CoarseToFineParser implements Parser {
         for (int x = 0; x < numFineLabels; x++) {
           int coarseX = fineToCoarseMap[x];
           coarseScore = denominator;
-          coarseScore += coarseUnaryScores[getCoarseBottomIndex(coarseX, i, j)];
           coarseScore += coarseBinaryOutside[getCoarseIndex(coarseX, i, j)];
+          if (coarseScore <= CELL_THRESH) {
+            fineUnaryScores[getFineBottomIndex(x, i, j)] = Double.NEGATIVE_INFINITY;
+            continue;
+          }
+          coarseScore += coarseUnaryScores[getCoarseBottomIndex(coarseX, i, j)];
           if (coarseScore <= CELL_THRESH) {
             fineUnaryScores[getFineBottomIndex(x, i, j)] = Double.NEGATIVE_INFINITY;
             continue;
@@ -416,12 +416,18 @@ class CoarseToFineParser implements Parser {
 
     Tree<String> ret;
     if (fineUnaryScores[area*numFineLabels] == Double.NEGATIVE_INFINITY) {
-      // TODO: Re-run with higher threshold instead of returning junk
-      ret = new Tree<String>("ROOT", Collections.singletonList(new Tree<String>("JUNK")));
+      if (CELL_THRESH == Double.NEGATIVE_INFINITY) {
+        ret = new Tree<String>("ROOT", Collections.singletonList(new Tree<String>("JUNK")));
+      } else {
+        double oldThresh = CELL_THRESH;
+        CELL_THRESH = Double.NEGATIVE_INFINITY;
+        ret = getBestParse(sentence);
+        CELL_THRESH = oldThresh;
+      }
+
     } else {
       ret = unaryTree(0, 0, 0);
     }
-//    System.out.println(Trees.PennTreeRenderer.render(ret));
     return TreeAnnotations.unAnnotateTree(ret);
   }
 
@@ -457,11 +463,6 @@ class CoarseToFineParser implements Parser {
     children.add(unaryTree(rule.getLeftChild(), i, length - k));
     children.add(unaryTree(rule.getRightChild(), k, j));
     return new Tree<String>(fineIndexer.get(x), children);
-  }
-
-  void test(String raw) {
-    List<String> sentence = Arrays.asList(raw.split(" "));
-    System.out.println(getBestParse(sentence));
   }
 
   void printArray(double[][] arr) {

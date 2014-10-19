@@ -3,7 +3,7 @@
 ant -f build_assign_parsing.xml
 rm result.out
 
-for i in {0..20}
+for i in {1..10}
 do
     echo $i >> result.out
     echo $i > input.in

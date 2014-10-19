@@ -105,4 +105,16 @@ accessed consecutive spots in memory. Additionally, since CKY only reads cells i
 a single large static array is used with no erasing between sentences. All this cut the time down
 to 465 seconds.
 
+\subsection{Parameter Tuning}
+
+\subsection{Other Minor Optimizations}
+\begin{itemize}
+\item If pruning is too aggressive for a sentence and no tree is found,
+the parser is re-run with pruning turned off.
+\item In binary rule expansion, if score of one child is already smaller than the current best,
+do not check the other child.
+\item Similarly, in coarse to fine pruning, if outside score minus denominator is already smaller
+than threshold, prune without checking inside score.
+\end{itemize}
+
 \end{document}

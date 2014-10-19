@@ -21,9 +21,7 @@ public class Grammar {
   List<BinaryRule>[] binaryRulesByLeftChild;
   List<BinaryRule>[] binaryRulesByRightChild;
   List<BinaryRule>[] binaryRulesByParent;
-  List<BinaryRule> binaryRules = new ArrayList<BinaryRule>();
 
-  List<UnaryRule>[] unaryRulesByChild;
   List<UnaryRule>[] unaryRulesByParent;
   List<UnaryRule> unaryRules = new ArrayList<UnaryRule>();
 
@@ -41,14 +39,6 @@ public class Grammar {
 
   public List<BinaryRule> getBinaryRulesByParent(int parentIdx) {
     return binaryRulesByParent[parentIdx];
-  }
-
-  public List<BinaryRule> getBinaryRules() {
-    return binaryRules;
-  }
-
-  public List<UnaryRule> getUnaryRulesByChild(int childIdx) {
-    return unaryRulesByChild[childIdx];
   }
 
   public List<UnaryRule> getUnaryRulesByParent(int parentIdx) {
@@ -91,7 +81,6 @@ public class Grammar {
   }
 
   private void addBinary(BinaryRule binaryRule) {
-    binaryRules.add(binaryRule);
     binaryRulesByParent[binaryRule.getParent()].add(binaryRule);
     binaryRulesByLeftChild[binaryRule.getLeftChild()].add(binaryRule);
     binaryRulesByRightChild[binaryRule.getRightChild()].add(binaryRule);
@@ -99,7 +88,6 @@ public class Grammar {
 
   private void addUnary(UnaryRule unaryRule) {
     unaryRules.add(unaryRule);
-    unaryRulesByChild[unaryRule.getChild()].add(unaryRule);
     unaryRulesByParent[unaryRule.getParent()].add(unaryRule);
   }
 
@@ -116,13 +104,11 @@ public class Grammar {
     this.binaryRulesByLeftChild = new List[labelIndexer.size()];
     this.binaryRulesByRightChild = new List[labelIndexer.size()];
     this.binaryRulesByParent = new List[labelIndexer.size()];
-    this.unaryRulesByChild = new List[labelIndexer.size()];
     this.unaryRulesByParent = new List[labelIndexer.size()];
     for (int i = 0; i < labelIndexer.size(); i++) {
       this.binaryRulesByLeftChild[i] = new ArrayList<BinaryRule>();
       this.binaryRulesByRightChild[i] = new ArrayList<BinaryRule>();
       this.binaryRulesByParent[i] = new ArrayList<BinaryRule>();
-      this.unaryRulesByChild[i] = new ArrayList<UnaryRule>();
       this.unaryRulesByParent[i] = new ArrayList<UnaryRule>();
     }
     Counter<UnaryRule> unaryRuleCounter = new Counter<UnaryRule>();
