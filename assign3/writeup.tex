@@ -93,6 +93,10 @@ such as prepositions and subordinating conjuctions, which resulted in a F1 of 80
 683 seconds. The lackluster accuracy gain of tag splitting is most likely due to mistakes in
 categorizing the words, and getting better performance would require more linguistics experience.
 
+\subsection{Array Rearrangement}
+To improve performance, I experimented with rearranging the tables in memory. Because the loop over
+tags is inside the loop over $i$ and $j$, the array should be rearranged as [$i$][$j$][$tag$] instead
+of the way presented in the slides to improve memory locality.
 
 
 \end{document}
