@@ -17,6 +17,12 @@
 \begin{document}
 \maketitle
 
+\section{Introduction}
+Below are implementations of an unlexicalized PCFG English parser. 
+The first being a generative parser, and the second implements 
+coarse to fine pruning with a simple grammar.
+Lastly, additional optimizations are made based on work in Klein and Manning 03
+to further improve F1 scores and computational performance.
 
 \section{Generative Parser}
 
@@ -59,11 +65,11 @@ for a 2.16x speed-up.
 \section{Additional Optimizations}
 This section includes additional exploration and optimizations of both accuracy and performance.
 These optimizations are only for the coarse to fine parser and are not back ported to the
-generative parser.
+generative parser. All tests are performed on the length 40 training and test set.
 
 \subsection{Increasing Vertical Markovization Order}
 Klein and Manning 03 suggests that increased vertical order produces better F1, so grandparent
-annotations were added to increase $v$ to 3. On the length 40 set, this increased F1 to 79.93
+annotations were added to increase $v$ to 3. This increased F1 to 79.93
 at a cost of increasing running time to 932 seconds due to a large increase in grammar size.
 However, the amount of time did not increase as much relative to the grammar size thanks to
 coarse to fine pruning.
@@ -105,7 +111,16 @@ accessed consecutive spots in memory. Additionally, since CKY only reads cells i
 a single large static array is used with no erasing between sentences. All this cut the time down
 to 465 seconds.
 
-\subsection{Parameter Tuning}
+\subsection{Tuning Pruning Threshold}
+One parameter to tune is the probability of the coarse grammar at which
+we prune the fine grammar. As expected, F1 increases as we prune less, with 
+diminishing returns, and compute time increases as well.
+\includegraphics[keepaspectratio=true, width=220px]{thresh_f1.png}
+\includegraphics[keepaspectratio=true, width=220px]{thresh_time.png}
+
+Although F1 reaches a peak of 81.3, and reaching 80 F1 required around 6 minutes, 
+a compromise between speed and accuracy for the submission was
+picked at a threshold of -7.5, with a F1 of 81.07 and a time of 487 seconds. 
 
 \subsection{Other Minor Optimizations}
 \begin{itemize}

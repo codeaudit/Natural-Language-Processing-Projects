@@ -35,7 +35,7 @@ class CoarseToFineParser implements Parser {
   int numFineLabels, numCoarseLabels;
   int length;
 
-  static double CELL_THRESH = -2;
+  static double CELL_THRESH = -7.5;
   static double MIN_OCCURRENCES = 10d;
   final static int MAX_LENGTH = 40;
 
