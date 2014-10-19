@@ -96,7 +96,13 @@ categorizing the words, and getting better performance would require more lingui
 \subsection{Array Rearrangement}
 To improve performance, I experimented with rearranging the tables in memory. Because the loop over
 tags is inside the loop over $i$ and $j$, the array should be rearranged as [$i$][$j$][$tag$] instead
-of the way presented in the slides to improve memory locality.
-
+of the way presented in the slides to improve memory locality. Furthermore, instead of using a
+3D array, the arrays were flattened into one large array since index calculation,
+even with a triangular array, takes insignificant time according to a CPU profiler. Flattening the
+array and rearranging indexing order decreased the time to 500 seconds. A separate indexing scheme
+was then added for outside algorithm, since its array access order differed, to ensure the algorithm
+accessed consecutive spots in memory. Additionally, since CKY only reads cells it has filled,
+a single large static array is used with no erasing between sentences. All this cut the time down
+to 465 seconds.
 
 \end{document}
