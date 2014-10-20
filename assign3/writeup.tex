@@ -108,7 +108,7 @@ even with a triangular array, takes insignificant time according to a CPU profil
 array and rearranging indexing order decreased the time to 500 seconds. A separate indexing scheme
 was then added for outside algorithm, since its array access order differed, to ensure the algorithm
 accessed consecutive spots in memory. Additionally, since CKY only reads cells it has filled,
-a single large static array is used with no erasing between sentences. All this cut the time down
+a single large preallocated array is used with no erasing between sentences. All this cut the time down
 to 465 seconds.
 
 \subsection{Tuning Pruning Threshold}
@@ -131,5 +131,9 @@ do not check the other child.
 \item Similarly, in coarse to fine pruning, if outside score minus denominator is already smaller
 than threshold, prune without checking inside score.
 \end{itemize}
+
+\section{Final Results}
+81.15 F1 in 490 seconds
+
 
 \end{document}
