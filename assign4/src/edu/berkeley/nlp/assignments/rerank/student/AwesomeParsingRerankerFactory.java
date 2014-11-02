@@ -4,6 +4,7 @@ import edu.berkeley.nlp.assignments.rerank.KbestList;
 import edu.berkeley.nlp.assignments.rerank.ParsingReranker;
 import edu.berkeley.nlp.assignments.rerank.ParsingRerankerFactory;
 import edu.berkeley.nlp.ling.Tree;
+import edu.berkeley.nlp.math.DifferentiableFunction;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.util.Pair;
 import edu.berkeley.nlp.math.LBFGSMinimizer;
@@ -20,9 +21,8 @@ public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 
 abstract class Reranker implements ParsingReranker {
 
-  final int NUM_ITERATIONS = 5;
-  final int KBEST_K = 10;
-  final int NUM_FEATURES = 100;
+  final static int KBEST_K = 10;
+  final static int NUM_FEATURES = 100;
   boolean addFeaturesToIndexer = true;
   Indexer<String> featureIndexer = new Indexer<String>();
 
@@ -86,13 +86,41 @@ abstract class Reranker implements ParsingReranker {
 
 class MaximumEntropyReranker extends Reranker {
 
+  final static double REGULARIZATION_CONSTANT = 1.0d;
+
   MaximumEntropyReranker(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
 
+  }
+
+  public Tree<String> getBestParse(List<String> sentence, KbestList kbestList) {
+
+  }
+
+  class LogLikelihood implements DifferentiableFunction {
+
+    int dimension() {
+      return MaximumEntropyReranker.NUM_FEATURES;
+    }
+
+    double valueAt(double[] x) {
+      double value = 0d;
+      for (double x_i : x) {
+        value += x_i * x_i;
+      }
+      value *= REGULARIZATION_CONSTANT;
+
+
+    }
+
+    double[] derivativeAt(double[] x) {
+
+    }
   }
 }
 
 class PerceptronReranker extends Reranker {
 
+  final static int NUM_ITERATIONS = 5;
   int[] weights;
   final static SimpleFeatureExtractor featureExtractor = new SimpleFeatureExtractor();
 
