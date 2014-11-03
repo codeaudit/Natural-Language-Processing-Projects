@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+ant -f build_assign_rerank.xml
+
+java -cp assign_rerank.jar:assign_rerank-submit.jar -server -ea -mx300m \
+edu.berkeley.nlp.assignments.rerank.ParsingRerankerTester \
+-path rerank-data -rerankerType AWESOME -sanityCheck

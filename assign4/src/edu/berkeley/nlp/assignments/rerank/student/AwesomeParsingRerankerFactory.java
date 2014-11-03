@@ -3,13 +3,16 @@ package edu.berkeley.nlp.assignments.rerank.student;
 import edu.berkeley.nlp.assignments.rerank.KbestList;
 import edu.berkeley.nlp.assignments.rerank.ParsingReranker;
 import edu.berkeley.nlp.assignments.rerank.ParsingRerankerFactory;
+import edu.berkeley.nlp.assignments.rerank.SurfaceHeadFinder;
 import edu.berkeley.nlp.ling.Tree;
+import edu.berkeley.nlp.ling.AnchoredTree;
+import edu.berkeley.nlp.ling.Constituent;
 import edu.berkeley.nlp.math.DifferentiableFunction;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.util.Pair;
 import edu.berkeley.nlp.math.LBFGSMinimizer;
 
-import java.util.ArrayList;
+import java.util.*;
 
 
 public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
@@ -21,12 +24,10 @@ public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 
 abstract class Reranker implements ParsingReranker {
 
-  final static int KBEST_K = 10;
-  final static int NUM_FEATURES = 100;
   boolean addFeaturesToIndexer = true;
-  Indexer<String> featureIndexer = new Indexer<String>();
+  static Indexer<String> featureIndexer = new Indexer<String>();
 
-  public Tree<String> getBestParse(List<String> sentence, KbestList kbestList);
+  public abstract Tree<String> getBestParse(List<String> sentence, KbestList kbestList);
 
   public ArrayList<Integer> extractFeatures(KbestList kbestList, int idx) {
     Tree<String> tree = kbestList.getKbestTrees().get(idx);
@@ -43,7 +44,7 @@ abstract class Reranker implements ParsingReranker {
     SurfaceHeadFinder shf = new SurfaceHeadFinder();
 
     // FEATURE COMPUTATION
-    List<Integer> feats = new ArrayList<Integer>();
+    ArrayList<Integer> feats = new ArrayList<Integer>();
     // Fires a feature based on the position in the k-best list. This should allow the model to learn that
     // high-up trees
     addFeature("Posn=" + idx, feats, featureIndexer, addFeaturesToIndexer);
@@ -93,27 +94,39 @@ class MaximumEntropyReranker extends Reranker {
   }
 
   public Tree<String> getBestParse(List<String> sentence, KbestList kbestList) {
-
+    return null;
   }
 
   class LogLikelihood implements DifferentiableFunction {
 
-    int dimension() {
-      return MaximumEntropyReranker.NUM_FEATURES;
+    List<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees;
+
+    public int dimension() {
+      return MaximumEntropyReranker.featureIndexer.size();
     }
 
-    double valueAt(double[] x) {
+    public double valueAt(double[] x) {
       double value = 0d;
       for (double x_i : x) {
         value += x_i * x_i;
       }
       value *= REGULARIZATION_CONSTANT;
 
+      for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
+        KbestList kbestList = pair.getFirst();
+        Tree<String> goldTree = pair.getSecond();
+        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue;
 
+        for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
+
+        }
+      }
+
+      return 0d;
     }
 
-    double[] derivativeAt(double[] x) {
-
+    public double[] derivativeAt(double[] x) {
+      return null;
     }
   }
 }
@@ -121,27 +134,24 @@ class MaximumEntropyReranker extends Reranker {
 class PerceptronReranker extends Reranker {
 
   final static int NUM_ITERATIONS = 5;
-  int[] weights;
-  final static SimpleFeatureExtractor featureExtractor = new SimpleFeatureExtractor();
+  ArrayList<Integer> weights;
 
   PerceptronReranker(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
-    weights = new int[NUM_FEATURES];
-    Arrays.fill(weights, 0);
+    weights = new ArrayList<Integer>();
 
     for (int iter_number = 0; iter_number < NUM_ITERATIONS; iter_number++) {
+      System.out.println("iter_number = " + iter_number);
       for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
 
         KbestList kbestList = pair.getFirst();
         Tree<String> goldTree = pair.getSecond();
 
-        if (!isTreeInList(goldTree, kbestList)) continue; // TODO
+        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue; // TODO: F1 dist as gold
 
-        assert kbestList.getKbestTrees().size() == KBEST_K;
-
-        ArrayList<Integer> predictedFeats;
-        ArrayList<Integer> goldFeats;
+        List<Integer> predictedFeats = Collections.EMPTY_LIST;
+        List<Integer> goldFeats = Collections.EMPTY_LIST;
         int predictedScore = Integer.MIN_VALUE;
-        for (int index = 0; index < KBEST_K; k++) {
+        for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
           ArrayList<Integer> features = extractFeatures(kbestList, index);
           if (kbestList.getKbestTrees().get(index).hashCode() == goldTree.hashCode()) {
             goldFeats = features;
@@ -149,7 +159,8 @@ class PerceptronReranker extends Reranker {
 
           int score = 0;
           for (Integer featIdx : features) {
-            score += weights[featIdx];
+            while (featIdx >= weights.size()) weights.add(0);
+            score += weights.get(featIdx);
           }
           if (score >= predictedScore) {
             predictedFeats = features;
@@ -157,10 +168,10 @@ class PerceptronReranker extends Reranker {
         }
 
         for (Integer featIdx : predictedFeats) {
-          weights[featIdx] -= 1;
+          weights.set(featIdx, weights.get(featIdx) - 1);
         }
         for (Integer featIdx : goldFeats) {
-          weights[featIdx] += 1;
+          weights.set(featIdx, weights.get(featIdx) + 1);
         }
       }
     }
@@ -169,20 +180,19 @@ class PerceptronReranker extends Reranker {
   }
 
   public Tree<String> getBestParse(List<String> sentence, KbestList kbestList) {
-    assert kbestList.getKbestTrees().size() == KBEST_K;
-    int bestIndex;
+    int bestIndex = -1;
     int bestScore = Integer.MIN_VALUE;
-    for (int index = 0; index < KBEST_K; k++) {
+    for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
       ArrayList<Integer> features = extractFeatures(kbestList, index);
 
       int score = 0;
       for (Integer featIdx :features) {
-        score += weights[featIdx];
+        score += weights.get(featIdx);
       }
       if (score > bestScore) bestIndex = index;
     }
 
-    return kbestList.get(bestIndex);
+    return kbestList.getKbestTrees().get(bestIndex);
   }
 }
 
