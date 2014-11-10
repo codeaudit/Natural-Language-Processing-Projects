@@ -8,17 +8,19 @@ import edu.berkeley.nlp.ling.Tree;
 import edu.berkeley.nlp.ling.AnchoredTree;
 import edu.berkeley.nlp.ling.Constituent;
 import edu.berkeley.nlp.math.DifferentiableFunction;
+import edu.berkeley.nlp.parser.EnglishPennTreebankParseEvaluator;
 import edu.berkeley.nlp.util.Indexer;
 import edu.berkeley.nlp.util.Pair;
 import edu.berkeley.nlp.math.LBFGSMinimizer;
 
+import java.text.NumberFormat;
 import java.util.*;
 
 
 public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 
   public ParsingReranker trainParserReranker(Iterable<Pair<KbestList,Tree<String>>> kbestListsAndGoldTrees) {
-     return new PerceptronReranker(kbestListsAndGoldTrees);
+     return new MaximumEntropyReranker(kbestListsAndGoldTrees);
   }
 }
 
@@ -29,7 +31,7 @@ abstract class Reranker implements ParsingReranker {
 
   public abstract Tree<String> getBestParse(List<String> sentence, KbestList kbestList);
 
-  public ArrayList<Integer> extractFeatures(KbestList kbestList, int idx) {
+  public int[] extractFeatures(KbestList kbestList, int idx) {
     Tree<String> tree = kbestList.getKbestTrees().get(idx);
     // Converts the tree
     // (see below)
@@ -43,32 +45,31 @@ abstract class Reranker implements ParsingReranker {
     // like those discussed in Charniak and Johnson
     SurfaceHeadFinder shf = new SurfaceHeadFinder();
 
-    // FEATURE COMPUTATION
     ArrayList<Integer> feats = new ArrayList<Integer>();
-    // Fires a feature based on the position in the k-best list. This should allow the model to learn that
-    // high-up trees
     addFeature("Posn=" + idx, feats, featureIndexer, addFeaturesToIndexer);
 
     for (AnchoredTree<String> subtree : anchoredTree.toSubTreeList()) {
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
-        // Fires a feature based on the identity of a nonterminal rule production. This allows the model to learn features
-        // roughly equivalent to those in an unbinarized coarse grammar.
         String rule = "Rule=" + subtree.getLabel() + " ->";
         for (AnchoredTree<String> child : subtree.getChildren()) {
           rule += " " + child.getLabel();
         }
         addFeature(rule, feats, featureIndexer, addFeaturesToIndexer);
+
+        if (!subtree.getLabel().equals("S")) {
+
+        }
       }
     }
-    // Add your own features here!
 
-    return feats;
+//    long score = Math.round(-kbestList.getScores()[idx]/2);
+//    addFeature(Long.toString(score), feats, featureIndexer, addFeaturesToIndexer);
 
-//    int[] featsArr = new int[feats.size()];
-//    for (int i = 0; i < feats.size(); i++) {
-//      featsArr[i] = feats.get(i).intValue();
-//    }
-//    return featsArr;
+    int[] featsArr = new int[feats.size()];
+    for (int i = 0; i < feats.size(); i++) {
+      featsArr[i] = feats.get(i);
+    }
+    return featsArr;
   }
 
   private void addFeature(String feat, List<Integer> feats, Indexer<String> featureIndexer, boolean addNew) {
@@ -83,23 +84,115 @@ abstract class Reranker implements ParsingReranker {
     }
     return false;
   }
+
+  int goldTreePosition(Tree<String> goldTree, List<Tree<String>> list) {
+    double bestF1 = Double.NEGATIVE_INFINITY;
+    int bestIndex = -1;
+
+    int index = 0;
+    for (Tree<String> tree : list) {
+      EnglishPennTreebankParseEvaluator.LabeledConstituentEval<String> evaluator =
+              new EnglishPennTreebankParseEvaluator.LabeledConstituentEval<String>(
+                      Collections.singleton("ROOT"), new HashSet<String>()
+              );
+      double f1 = evaluator.evaluateF1(goldTree, tree);
+      if (f1 > bestF1) {
+        bestF1 = f1;
+        bestIndex = index;
+      }
+      index++;
+    }
+
+    return bestIndex;
+  }
+
+}
+
+class TreeWrapper {
+  int position = -1; // TODO: delete?
+  int[] features;
+}
+
+class BestList {
+  ArrayList<TreeWrapper> trees = new ArrayList<TreeWrapper>();
+  TreeWrapper goldTree;
 }
 
 class MaximumEntropyReranker extends Reranker {
 
-  final static double REGULARIZATION_CONSTANT = 1.0d;
+  final static double REGULARIZATION_CONSTANT = 0.01;
+  final static double OPTIMIZATION_TOLERANCE = 0.01;
+  ArrayList<BestList> trainingData;
+  double[] weights;
 
   MaximumEntropyReranker(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
+    System.out.println("Calculating features");
+    trainingData = new ArrayList<BestList>();
+    for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
+      KbestList kbestList = pair.getFirst();
+      Tree<String> goldTree = pair.getSecond();
 
+      if (!isTreeInList(goldTree, kbestList.getKbestTrees())) {
+        goldTree = kbestList.getKbestTrees().get(goldTreePosition(goldTree, kbestList.getKbestTrees()));
+      }
+
+      BestList bestList = new BestList();
+      for (int pos = 0; pos < kbestList.getKbestTrees().size(); pos++) {
+        TreeWrapper treeWrapper = new TreeWrapper();
+
+        treeWrapper.features = extractFeatures(kbestList, pos);
+        treeWrapper.position = pos;
+        bestList.trees.add(treeWrapper);
+
+        if (kbestList.getKbestTrees().get(pos).hashCode() == goldTree.hashCode()) {
+          TreeWrapper goldTreeWrapper = new TreeWrapper();
+          goldTreeWrapper.features = treeWrapper.features;
+          goldTreeWrapper.position = pos;
+
+          bestList.goldTree = goldTreeWrapper;
+        }
+      }
+
+      trainingData.add(bestList);
+      if (trainingData.size() % 100 == 0) {
+        System.out.println(Integer.toString(trainingData.size()) + " lists processed");
+      }
+    }
+
+
+    LBFGSMinimizer minimizer = new LBFGSMinimizer();
+    LogLikelihood function = new LogLikelihood(trainingData);
+    weights = new double[function.dimension()];
+    Arrays.fill(weights, 0);
+
+    System.out.println("Minimizing with dimension " + NumberFormat.getInstance().format(function.dimension()));
+    weights = minimizer.minimize(function, weights, OPTIMIZATION_TOLERANCE);
+    System.out.println("Parsing test set");
+
+    addFeaturesToIndexer = false;
   }
 
   public Tree<String> getBestParse(List<String> sentence, KbestList kbestList) {
-    return null;
+    Tree<String> bestTree = null;
+    double bestScore = Double.NEGATIVE_INFINITY;
+
+    for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
+      int[] feats = extractFeatures(kbestList, index);
+      double score = 0;
+      for (int feat : feats) {
+        score += weights[feat];
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestTree = kbestList.getKbestTrees().get(index);
+      }
+    }
+    return bestTree;
   }
 
   class LogLikelihood implements DifferentiableFunction {
 
-    List<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees;
+    ArrayList<BestList> trainingData;
 
     public int dimension() {
       return MaximumEntropyReranker.featureIndexer.size();
@@ -112,21 +205,70 @@ class MaximumEntropyReranker extends Reranker {
       }
       value *= REGULARIZATION_CONSTANT;
 
-      for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
-        KbestList kbestList = pair.getFirst();
-        Tree<String> goldTree = pair.getSecond();
-        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue;
+      for (BestList bestList : trainingData) {
+        ArrayList<TreeWrapper> trees = bestList.trees;
+        TreeWrapper goldTree = bestList.goldTree;
 
-        for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
-
+        for (int feat : goldTree.features) {
+          value -= x[feat];
         }
+
+        double sum = 0;
+        for (TreeWrapper tree : trees) {
+          double dotProduct = 0;
+          for (int feat : tree.features) {
+            dotProduct += x[feat];
+          }
+          sum += Math.exp(dotProduct);
+        }
+        value += Math.log(sum);
       }
 
-      return 0d;
+      return value;
     }
 
     public double[] derivativeAt(double[] x) {
-      return null;
+      int dim = x.length;
+      double[] derivative = new double[dim];
+      Arrays.fill(derivative, 0);
+
+      for (int i = 0; i < dim; i++) {
+        derivative[i] = 2 * REGULARIZATION_CONSTANT * x[i];
+      }
+
+      for (BestList bestList : trainingData) {
+
+        for (int feat : bestList.goldTree.features) {
+          derivative[feat] -= 1;
+        }
+
+        double[] num = new double[trainingData.size()];
+        double denom = 0;
+        for (TreeWrapper tree : bestList.trees) {
+          double exp = 0;
+          for (int feat : tree.features) {
+            exp += x[feat];
+          }
+          exp = Math.exp(exp);
+          denom += exp;
+          assert denom < Double.MAX_VALUE;
+
+          num[tree.position] = exp;
+        }
+
+        for (TreeWrapper tree : bestList.trees) {
+          for (int feat : tree.features) {
+            assert denom >= num[tree.position];
+            derivative[feat] += num[tree.position] / denom; // TODO: Reorder this
+          }
+        }
+      }
+
+      return derivative;
+    }
+
+    LogLikelihood(ArrayList<BestList> trainingData) {
+      this.trainingData = trainingData;
     }
   }
 }
@@ -146,13 +288,13 @@ class PerceptronReranker extends Reranker {
         KbestList kbestList = pair.getFirst();
         Tree<String> goldTree = pair.getSecond();
 
-        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue; // TODO: F1 dist as gold
+        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue;
 
-        List<Integer> predictedFeats = Collections.EMPTY_LIST;
-        List<Integer> goldFeats = Collections.EMPTY_LIST;
+        int[] predictedFeats = null;
+        int[] goldFeats = null;
         int predictedScore = Integer.MIN_VALUE;
         for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
-          ArrayList<Integer> features = extractFeatures(kbestList, index);
+          int[] features = extractFeatures(kbestList, index);
           if (kbestList.getKbestTrees().get(index).hashCode() == goldTree.hashCode()) {
             goldFeats = features;
           }
@@ -167,11 +309,16 @@ class PerceptronReranker extends Reranker {
           }
         }
 
-        for (Integer featIdx : predictedFeats) {
-          weights.set(featIdx, weights.get(featIdx) - 1);
+        if (predictedFeats != null ) {
+          assert goldFeats != null;
+          for (int featIdx : predictedFeats) {
+            weights.set(featIdx, weights.get(featIdx) - 1);
+          }
         }
-        for (Integer featIdx : goldFeats) {
-          weights.set(featIdx, weights.get(featIdx) + 1);
+        if (goldFeats != null) {
+          for (int featIdx : goldFeats) {
+            weights.set(featIdx, weights.get(featIdx) + 1);
+          }
         }
       }
     }
@@ -183,10 +330,10 @@ class PerceptronReranker extends Reranker {
     int bestIndex = -1;
     int bestScore = Integer.MIN_VALUE;
     for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
-      ArrayList<Integer> features = extractFeatures(kbestList, index);
+      int[] features = extractFeatures(kbestList, index);
 
       int score = 0;
-      for (Integer featIdx :features) {
+      for (int featIdx :features) {
         score += weights.get(featIdx);
       }
       if (score > bestScore) bestIndex = index;
