@@ -62,8 +62,8 @@ abstract class Reranker implements ParsingReranker {
       }
     }
 
-//    long score = Math.round(-kbestList.getScores()[idx]/2);
-//    addFeature(Long.toString(score), feats, featureIndexer, addFeaturesToIndexer);
+    long score = Math.round(-kbestList.getScores()[idx]);
+    addFeature("Score=" + Long.toString(score), feats, featureIndexer, addFeaturesToIndexer);
 
     int[] featsArr = new int[feats.size()];
     for (int i = 0; i < feats.size(); i++) {
@@ -121,7 +121,7 @@ class BestList {
 class MaximumEntropyReranker extends Reranker {
 
   final static double REGULARIZATION_CONSTANT = 0.01;
-  final static double OPTIMIZATION_TOLERANCE = 0.01;
+  final static double OPTIMIZATION_TOLERANCE = 0.001;
   ArrayList<BestList> trainingData;
   double[] weights;
 
@@ -154,7 +154,7 @@ class MaximumEntropyReranker extends Reranker {
       }
 
       trainingData.add(bestList);
-      if (trainingData.size() % 100 == 0) {
+      if (trainingData.size() % 1000 == 0) {
         System.out.println(Integer.toString(trainingData.size()) + " lists processed");
       }
     }
