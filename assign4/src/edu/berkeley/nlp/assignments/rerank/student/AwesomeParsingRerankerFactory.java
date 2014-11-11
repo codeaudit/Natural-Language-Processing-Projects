@@ -29,6 +29,7 @@ abstract class Reranker implements ParsingReranker {
   boolean addFeaturesToIndexer = true;
   boolean isTreeGold = true;
   static Indexer<String> featureIndexer = new Indexer<String>();
+  static Dictionary dictionary;
 
   public abstract Tree<String> getBestParse(List<String> sentence, KbestList kbestList);
 
@@ -58,14 +59,14 @@ abstract class Reranker implements ParsingReranker {
           rule += " " + child.getLabel();
         }
         addFeature(rule, feats, addFeaturesToIndexer);
-        addFeature("RuleNumChildren=" + subtree.getLabel() + numChildren, feats, addFeaturesToIndexer);
+//        addFeature("RuleNumChildren=" + subtree.getLabel() + numChildren, feats, addFeaturesToIndexer);
 
         if (!subtree.getLabel().equals("S")) {
           String ruleLen = "RuleLen=" + subtree.getLabel() + " " + subtree.getSpanLength();
           addFeature(ruleLen, feats, addFeaturesToIndexer);
+
+
         }
-
-
       }
     }
 
@@ -125,6 +126,47 @@ class BestList {
   TreeWrapper goldTree;
 }
 
+class Dictionary {
+  HashMap<String, Integer> counter;
+  final static int DISCARD_THRESHOLD = 100;
+
+  Dictionary(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
+    counter = new HashMap<String, Integer>();
+
+    for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
+      List<Tree<String>> kbestList = pair.getFirst().getKbestTrees();
+      Tree<String> goldTree = pair.getSecond();
+
+      addTree(goldTree);
+      for (Tree<String> tree : kbestList) {
+        addTree(tree);
+      }
+    }
+
+    for (String key : counter.keySet()) {
+      if (counter.get(key) < DISCARD_THRESHOLD) counter.remove(key);
+    }
+  }
+
+  private void addTree(Tree<String> tree) {
+    for (String node : tree.getYield()) {
+      while (!node.isEmpty()) {
+        Integer count = counter.get(node);
+        if (count == null) count = 0;
+        counter.put(node, count + 1);
+        node = node.substring(1);
+      }
+    }
+  }
+
+  public String get(String key) {
+    while (!counter.containsKey(key)) {
+      key = key.substring(1);
+    }
+    return key;
+  }
+}
+
 class MaximumEntropyReranker extends Reranker {
 
   final static double REGULARIZATION_CONSTANT = 0.01;
@@ -133,6 +175,9 @@ class MaximumEntropyReranker extends Reranker {
   double[] weights;
 
   MaximumEntropyReranker(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
+
+    dictionary = new Dictionary(kbestListsAndGoldTrees);
+
     System.out.println("Calculating features");
     trainingData = new ArrayList<BestList>();
     for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
