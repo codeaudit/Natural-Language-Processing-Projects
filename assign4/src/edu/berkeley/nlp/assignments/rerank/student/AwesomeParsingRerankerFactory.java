@@ -55,6 +55,7 @@ abstract class Reranker implements ParsingReranker {
       String label = subtree.getLabel();
       int startIndex = subtree.getStartIdx();
       int endIndex = subtree.getEndIdx();
+      int binnedLength = binLength(subtree.getSpanLength());
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
         String rule = "Rule=" + label + " ->";
         int numChildren = 0;
@@ -65,7 +66,7 @@ abstract class Reranker implements ParsingReranker {
 //        addFeature("RuleNumChildren=" + label + numChildren, feats, addFeaturesToIndexer);
 
         if (!label.equals("S") && !label.equals("ROOT")) {
-          String ruleLen = "RuleLen=" + label + " " + subtree.getSpanLength();
+          String ruleLen = "RuleLen=" + label + " " + binnedLength;
           addFeature(ruleLen, feats, addFeaturesToIndexer);
 
           String ruleWordBegin = "RuleWordBegin=" + label + " "
@@ -90,28 +91,20 @@ abstract class Reranker implements ParsingReranker {
           String ruleWordAfter = "RuleWordAfter=" + label + " " + wordAfter;
           addFeature(ruleWordAfter, feats, addFeaturesToIndexer);
 
-//          String tagBefore = startIndex == 0 ? "" : dictionary.get(poss.get(startIndex - 1));
-//          String ruleTagBefore = "RuleTagBefore=" + label + " " + tagBefore;
-//          addFeature(ruleTagBefore, feats, addFeaturesToIndexer);
-//
-//          String tagAfter = endIndex == words.size() ? "" : dictionary.get(poss.get(endIndex));
-//          String ruleTagAfter = "RuleTagAfter=" + label + " " + tagAfter;
-//          addFeature(ruleTagAfter, feats, addFeaturesToIndexer);
-
           String tagBefore = startIndex == 0 ? "" : dictionary.get(poss.get(startIndex - 1));
-          String ruleTagBefore = "RuleTagBefore=" + label + " "
-                  + subtree.getSpanLength() + " " + tagBefore;
+          String ruleTagBefore = "RuleTagBefore=" + label + " " + binnedLength + " " + tagBefore;
           addFeature(ruleTagBefore, feats, addFeaturesToIndexer);
 
-          String tagBefore2 = startIndex <= 1 ? "" : dictionary.get(poss.get(startIndex - 2));
-          String ruleTagBefore2 = "RuleTagBefore2=" + label + " "
-                  + subtree.getSpanLength() + " " + tagBefore + " " + tagBefore2;
-          addFeature(ruleTagBefore, feats, addFeaturesToIndexer);
+//          String tagBefore2 = startIndex <= 1 ? "" : dictionary.get(poss.get(startIndex - 2));
+//          String ruleTagBefore2 = "RuleTagBefore2=" + label + " "
+//                  + subtree.getSpanLength() + " " + tagBefore + " " + tagBefore2;
+//          addFeature(ruleTagBefore, feats, addFeaturesToIndexer);
 
           String tagAfter = endIndex == words.size() ? "" : dictionary.get(poss.get(endIndex));
-          String ruleTagAfter = "RuleTagAfter=" + label + " "
-                  + subtree.getSpanLength() + " " + tagAfter;
+          String ruleTagAfter = "RuleTagAfter=" + label + " " + binnedLength + " " + tagAfter;
           addFeature(ruleTagAfter, feats, addFeaturesToIndexer);
+
+
         }
       }
     }
@@ -158,6 +151,13 @@ abstract class Reranker implements ParsingReranker {
     }
 
     return bestIndex;
+  }
+
+  private int binLength(int length) {
+    if (length <= 5) return length;
+    if (length <= 10) return 10;
+    if (length <= 20) return 20;
+    return 21;
   }
 
 }
