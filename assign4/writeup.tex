@@ -41,7 +41,7 @@ where words aren't seen frequently in training data. To combat this, I borrow th
 Less Grammar, More Features paper of representing words as their longest suffix that occurs more
 than 100 times. As a preprocessing step, a suffix trie with counts is constructed from
 all tree yields, then any nodes with fewer counts than threshold are pruned before feature calculation step.
-\footnote{The word "SEAQ" presented itself as an interesting edge case, and was represented
+\footnote{The word ``SEAQ'' presented itself as an interesting edge case, and was represented
 as empty string}
 
 Using this new technique, I added features to mark the starting and ending words of rules.
@@ -63,7 +63,31 @@ fired when combined with other span qualities. Following the Hall paper, I binne
 into 1, 2, 3, 4, 5, 10, 20, 21+, and applied binning to all previous instances where unbinned
 length was used. This increased F1 to 86.48.
 
+So far these features have been applied only to trees whose rules are not ROOT or S, since
+S tend to occur infrequently and usually are not the reason parsers make mistakes. Experimenting
+with firing features on S tags as well reduces F1, as these additional features overfit and
+explain away relationships better described by other features.
 
+However, for the next feature class, split points, I included S tags since how they split is
+relevant. Features were fired for the words on either side of a split for binary branching
+tree nodes to handle a number of cases as described in the Hall paper. Doing so increases
+number of features to 450,110, training time to 199 seconds, and F1 to 86.71.
+
+Next, I added span shape where each span is described by each word's characteristics: whether
+it is uppercase, punctuation, or digit. This did not have an effect on F1 when done for all
+spans of all lengths. When done for only spans of size 5 or smaller, as shape should be most
+important for short spans with punctuation, F1 remained at 86.71. I then added back in larger
+spans, but only took the first and last two words to prevent sparsity, and the F1 decreased, so
+this feature class was abandoned.
+
+\section{Regularization Tuning}
+
+I experimented with various regularization constants, ranging from 0 to 1, and most values
+made little to no difference (varying F1 by 0.01), with some decreasing F1 by a small amount. 
+The F1 scores were not linear or monotonic with $\lambda$. 
+Even with no regularization, F1 remained at 86.71, suggesting that regularization is not important
+for this instance.
+I settled on a $\lambda$ of 0.1 with a F1 of 86.72.
 
 
 \end{document}

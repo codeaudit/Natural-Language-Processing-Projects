@@ -105,7 +105,19 @@ abstract class Reranker implements ParsingReranker {
           String ruleTagAfter = "RuleTagAfter=" + label + " " + binnedLength + " " + tagAfter;
           addFeature(ruleTagAfter, feats, addFeaturesToIndexer);
 
-
+//          String spanShape = "SpanShape=" + label + ":";
+//          if (subtree.getSpanLength() <= 5) {
+//            for (int i = startIndex; i < endIndex; i++) {
+//              spanShape += categorizeWord(words.get(i));
+//            }
+//          } else {
+//            spanShape += categorizeWord(words.get(startIndex));
+//            spanShape += categorizeWord(words.get(startIndex + 1));
+//            spanShape += "N";
+//            spanShape += categorizeWord(words.get(endIndex - 2));
+//            spanShape += categorizeWord(words.get(endIndex - 1));
+//          }
+//          addFeature(spanShape, feats, addFeaturesToIndexer);
         }
 
         if (children.size() == 2) {
@@ -168,6 +180,16 @@ abstract class Reranker implements ParsingReranker {
     return 21;
   }
 
+  private char categorizeWord(String word) {
+    int start = (int)word.charAt(0);
+    if (start <= 47) return (char)start;
+    if (start <= 57) return '0';
+    if (start <= 64) return (char)start;
+    if (start <= 90) return 'X';
+    if (start <= 96) return (char)start;
+    if (start <= 122) return 'x';
+    return (char)start;
+  }
 }
 
 class TreeWrapper {
@@ -226,8 +248,8 @@ class Dictionary {
 
 class MaximumEntropyReranker extends Reranker {
 
-  final static double REGULARIZATION_CONSTANT = 0.01;
-  final static double OPTIMIZATION_TOLERANCE = 0.001;
+  final static double REGULARIZATION_CONSTANT = 0.1;
+  final static double OPTIMIZATION_TOLERANCE = 0.0001;
   ArrayList<BestList> trainingData;
   double[] weights;
 
@@ -263,7 +285,7 @@ class MaximumEntropyReranker extends Reranker {
       }
 
       trainingData.add(bestList);
-      if (trainingData.size() % 1000 == 0) {
+      if (trainingData.size() % 100 == 0) {
         System.out.print('\r');
         System.out.print(Integer.toString(trainingData.size()) + " lists processed");
       }
