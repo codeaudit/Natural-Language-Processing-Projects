@@ -27,6 +27,7 @@ public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 abstract class Reranker implements ParsingReranker {
 
   boolean addFeaturesToIndexer = true;
+  boolean isTreeGold = true;
   static Indexer<String> featureIndexer = new Indexer<String>();
 
   public abstract Tree<String> getBestParse(List<String> sentence, KbestList kbestList);
@@ -45,6 +46,7 @@ abstract class Reranker implements ParsingReranker {
     // like those discussed in Charniak and Johnson
     SurfaceHeadFinder shf = new SurfaceHeadFinder();
 
+    boolean goldOnly = isTreeGold && addFeaturesToIndexer;
     ArrayList<Integer> feats = new ArrayList<Integer>();
     addFeature("Posn=" + idx, feats, featureIndexer, addFeaturesToIndexer);
 
@@ -57,7 +59,8 @@ abstract class Reranker implements ParsingReranker {
         addFeature(rule, feats, featureIndexer, addFeaturesToIndexer);
 
         if (!subtree.getLabel().equals("S")) {
-
+          String ruleLen = "RuleLen=" + subtree.getLabel() + " " + subtree.getSpanLength();
+          addFeature(ruleLen, feats, featureIndexer, addFeaturesToIndexer);
         }
       }
     }

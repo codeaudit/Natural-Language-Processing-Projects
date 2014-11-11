@@ -28,13 +28,15 @@ use best F1
 \section{Features}
 
 Using best-list position and rule indicators as simple features, the reranker has 45,991 features,
-trains in 110 seconds, and achieves a F1 of 85.43.
+trains in 110 seconds, and achieves a F1 of 85.03.
 
 I then added the 1-width binned log probability assigned to a tree as an indicator feature.
 While Charniak and Johnson used the probability as a feature directly,
 Johnson and Ural's used both real probability as well as binned log probability indicators,
 and the binned indicators had a greater effect on F1. This may be due to binning probabilities
 allows the reranker to accurately learn nonlinear relationships between log probability and tree quality.
+This feature increased F1 to 85.21.
+
 
 
 
