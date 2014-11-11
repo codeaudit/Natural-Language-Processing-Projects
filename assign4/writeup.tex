@@ -40,7 +40,9 @@ This feature increased F1 to 85.21. Adding lengths per rule further increased it
 Many potential features involve some sort of lexicalization, which comes with the issue of sparsity
 where words aren't seen frequently in training data. To combat this, I borrow the idea from the
 Less Grammar, More Features paper of representing words as their longest suffix that occurs more
-than 100 times.\footnote{The word "SEAQ" presented itself as an interesting edge case, and was represented
+than 100 times. As a preprocessing step, a suffix trie with counts is constructed from
+all tree yields, then any nodes with fewer counts than threshold are pruned before feature calculation step.
+\footnote{The word "SEAQ" presented itself as an interesting edge case, and was represented
 as empty string}
 
 Using this new technique, I added features to mark the starting and ending words of rules.
