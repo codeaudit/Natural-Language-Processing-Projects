@@ -56,16 +56,17 @@ abstract class Reranker implements ParsingReranker {
       int startIndex = subtree.getStartIdx();
       int endIndex = subtree.getEndIdx();
       int binnedLength = binLength(subtree.getSpanLength());
+      List<AnchoredTree<String>> children = subtree.getChildren();
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
         String rule = "Rule=" + label + " ->";
         int numChildren = 0;
-        for (AnchoredTree<String> child : subtree.getChildren()) {
+        for (AnchoredTree<String> child : children) {
           rule += " " + child.getLabel();
         }
         addFeature(rule, feats, addFeaturesToIndexer);
 //        addFeature("RuleNumChildren=" + label + numChildren, feats, addFeaturesToIndexer);
 
-        if (!label.equals("ROOT")) {
+        if (!label.equals("S") && !label.equals("ROOT")) {
           String ruleLen = "RuleLen=" + label + " " + binnedLength;
           addFeature(ruleLen, feats, addFeaturesToIndexer);
 
@@ -105,6 +106,13 @@ abstract class Reranker implements ParsingReranker {
           addFeature(ruleTagAfter, feats, addFeaturesToIndexer);
 
 
+        }
+
+        if (children.size() == 2) {
+          String splitPoint = "SplitPoint=" + label + ":";
+          splitPoint += dictionary.get(words.get(children.get(0).getEndIdx() - 1)) + "&";
+          splitPoint += dictionary.get(words.get(children.get(1).getStartIdx()));
+          addFeature(splitPoint, feats, addFeaturesToIndexer);
         }
       }
     }
@@ -256,9 +264,11 @@ class MaximumEntropyReranker extends Reranker {
 
       trainingData.add(bestList);
       if (trainingData.size() % 1000 == 0) {
-        System.out.println(Integer.toString(trainingData.size()) + " lists processed");
+        System.out.print('\r');
+        System.out.print(Integer.toString(trainingData.size()) + " lists processed");
       }
     }
+    System.out.print('\n');
 
 
     LBFGSMinimizer minimizer = new LBFGSMinimizer();
