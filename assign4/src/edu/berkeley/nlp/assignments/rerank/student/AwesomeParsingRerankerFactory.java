@@ -53,6 +53,8 @@ abstract class Reranker implements ParsingReranker {
 
     for (AnchoredTree<String> subtree : anchoredTree.toSubTreeList()) {
       String label = subtree.getLabel();
+      int startIndex = subtree.getStartIdx();
+      int endIndex = subtree.getEndIdx();
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
         String rule = "Rule=" + label + " ->";
         int numChildren = 0;
@@ -67,19 +69,26 @@ abstract class Reranker implements ParsingReranker {
           addFeature(ruleLen, feats, addFeaturesToIndexer);
 
           String ruleWordBegin = "RuleWordBegin=" + label + " "
-                  + dictionary.get(words.get(subtree.getStartIdx()));
+                  + dictionary.get(words.get(startIndex));
           addFeature(ruleWordBegin, feats, addFeaturesToIndexer);
 
           String ruleWordEnd = "RuleWordEnd=" + label + " "
-                  + dictionary.get(words.get(subtree.getEndIdx() - 1));
+                  + dictionary.get(words.get(endIndex - 1));
           addFeature(ruleWordEnd, feats, addFeaturesToIndexer);
 
-          String ruleTagBegin = "RuleTagBegin=" + label + " " + poss.get(subtree.getStartIdx());
+          String ruleTagBegin = "RuleTagBegin=" + label + " " + poss.get(startIndex);
           addFeature(ruleTagBegin, feats, addFeaturesToIndexer);
 
-          String ruleTagEnd = "RuleTagEnd=" + label + " " + poss.get(subtree.getEndIdx() - 1);
+          String ruleTagEnd = "RuleTagEnd=" + label + " " + poss.get(endIndex - 1);
           addFeature(ruleTagEnd, feats, addFeaturesToIndexer);
 
+          String wordBefore = startIndex == 0 ? "" : dictionary.get(words.get(startIndex - 1));
+          String ruleWordBefore = "RuleWordBefore=" + label + " " + wordBefore;
+          addFeature(ruleWordBefore, feats, addFeaturesToIndexer);
+
+          String wordAfter = endIndex == words.size() ? "" : dictionary.get(words.get(endIndex));
+          String ruleWordAfter = "RuleWordAfter=" + label + " " + wordAfter;
+          addFeature(ruleWordAfter, feats, addFeaturesToIndexer);
         }
       }
     }
