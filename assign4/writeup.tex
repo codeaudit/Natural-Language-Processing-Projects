@@ -22,8 +22,7 @@
 
 \section{Learning Algorithms}
 
-use best F1
-
+use best F1 as gold
 
 \section{Features}
 
@@ -55,9 +54,14 @@ Additonally adding start and end tags increases the F1 to 85.64.
 To learn the context of trees, I fire features for the word before and after each subtree rule.
 This increases feature count to 217,879, training time to 177 seconds, and F1 to 86.23.
 Adding neighboring tags decreased F1, but separating the neighboring tag features by subtree
-length as was done in Charniak and Johnson, the F1 increased to 86.26.
+length as was done in Charniak and Johnson, the F1 increased to 86.26. Varying the $l_1$ and $l_2$
+parameters (number of neighbors to fire on for each side) reduces F1, so a value of 1 was used
+for both.
 
-
+I then noticed a fair portion of subtrees have large spans, creating features that are sparsely
+fired when combined with other span qualities. Following the Hall paper, I binned the lengths
+into 1, 2, 3, 4, 5, 10, 20, 21+, and applied binning to all previous instances where unbinned
+length was used. This increased F1 to 86.48.
 
 
 \end{document}

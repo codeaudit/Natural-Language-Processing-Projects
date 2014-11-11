@@ -65,7 +65,7 @@ abstract class Reranker implements ParsingReranker {
         addFeature(rule, feats, addFeaturesToIndexer);
 //        addFeature("RuleNumChildren=" + label + numChildren, feats, addFeaturesToIndexer);
 
-        if (!label.equals("S") && !label.equals("ROOT")) {
+        if (!label.equals("ROOT")) {
           String ruleLen = "RuleLen=" + label + " " + binnedLength;
           addFeature(ruleLen, feats, addFeaturesToIndexer);
 
