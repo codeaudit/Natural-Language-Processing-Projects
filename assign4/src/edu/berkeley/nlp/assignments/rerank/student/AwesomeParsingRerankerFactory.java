@@ -48,25 +48,29 @@ abstract class Reranker implements ParsingReranker {
 
     boolean goldOnly = isTreeGold && addFeaturesToIndexer;
     ArrayList<Integer> feats = new ArrayList<Integer>();
-    addFeature("Posn=" + idx, feats, featureIndexer, addFeaturesToIndexer);
+    addFeature("Posn=" + idx, feats, addFeaturesToIndexer);
 
     for (AnchoredTree<String> subtree : anchoredTree.toSubTreeList()) {
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
         String rule = "Rule=" + subtree.getLabel() + " ->";
+        int numChildren = 0;
         for (AnchoredTree<String> child : subtree.getChildren()) {
           rule += " " + child.getLabel();
         }
-        addFeature(rule, feats, featureIndexer, addFeaturesToIndexer);
+        addFeature(rule, feats, addFeaturesToIndexer);
+        addFeature("RuleNumChildren=" + subtree.getLabel() + numChildren, feats, addFeaturesToIndexer);
 
         if (!subtree.getLabel().equals("S")) {
           String ruleLen = "RuleLen=" + subtree.getLabel() + " " + subtree.getSpanLength();
-          addFeature(ruleLen, feats, featureIndexer, addFeaturesToIndexer);
+          addFeature(ruleLen, feats, addFeaturesToIndexer);
         }
+
+
       }
     }
 
     long score = Math.round(-kbestList.getScores()[idx]);
-    addFeature("Score=" + Long.toString(score), feats, featureIndexer, addFeaturesToIndexer);
+    addFeature("Score=" + Long.toString(score), feats, addFeaturesToIndexer);
 
     int[] featsArr = new int[feats.size()];
     for (int i = 0; i < feats.size(); i++) {
@@ -75,7 +79,7 @@ abstract class Reranker implements ParsingReranker {
     return featsArr;
   }
 
-  private void addFeature(String feat, List<Integer> feats, Indexer<String> featureIndexer, boolean addNew) {
+  private void addFeature(String feat, List<Integer> feats, boolean addNew) {
     if (addNew || featureIndexer.contains(feat)) {
       feats.add(featureIndexer.addAndGetIndex(feat));
     }
