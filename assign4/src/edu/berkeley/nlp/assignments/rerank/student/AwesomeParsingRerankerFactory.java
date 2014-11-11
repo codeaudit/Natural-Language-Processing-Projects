@@ -89,6 +89,14 @@ abstract class Reranker implements ParsingReranker {
           String wordAfter = endIndex == words.size() ? "" : dictionary.get(words.get(endIndex));
           String ruleWordAfter = "RuleWordAfter=" + label + " " + wordAfter;
           addFeature(ruleWordAfter, feats, addFeaturesToIndexer);
+
+          String tagBefore = startIndex == 0 ? "" : dictionary.get(poss.get(startIndex - 1));
+          String ruleTagBefore = "RuleTagBefore=" + label + " " + tagBefore;
+          addFeature(ruleTagBefore, feats, addFeaturesToIndexer);
+
+          String tagAfter = endIndex == words.size() ? "" : dictionary.get(poss.get(endIndex));
+          String ruleTagAfter = "RuleTagAfter=" + label + " " + tagAfter;
+          addFeature(ruleTagAfter, feats, addFeaturesToIndexer);
         }
       }
     }

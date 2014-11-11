@@ -44,11 +44,14 @@ than 100 times.\footnote{The word "SEAQ" presented itself as an interesting edge
 as empty string}
 
 Using this new technique, I added features to mark the starting and ending words of rules.
+This captures some information about the lexical and syntactic heads of the trees.
 Case sensitivity was tested, and it made no difference so case insensitive was chosen for performance.
 Adding these features brought feature count to 143,529. It trains in 153 seconds
 and achieves a F1 of 85.63, which is now more than 1.5 points above the 1-best baseline.
 Additonally adding start and end tags increases the F1 to 85.64.
 
+To learn the context of trees, I fire features for the word before and after each subtree rule.
+This increases feature count to 217,879, training time to 177 seconds, and F1 to 86.23.
 
 
 
