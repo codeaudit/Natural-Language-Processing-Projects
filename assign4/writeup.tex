@@ -35,7 +35,21 @@ While Charniak and Johnson used the probability as a feature directly,
 Johnson and Ural's used both real probability as well as binned log probability indicators,
 and the binned indicators had a greater effect on F1. This may be due to binning probabilities
 allows the reranker to accurately learn nonlinear relationships between log probability and tree quality.
-This feature increased F1 to 85.21.
+This feature increased F1 to 85.21. Adding lengths per rule further increased it to 85.24.
+
+Many potential features involve some sort of lexicalization, which comes with the issue of sparsity
+where words aren't seen frequently in training data. To combat this, I borrow the idea from the
+Less Grammar, More Features paper of representing words as their
+
+Training took 152894 millis
+1-best baseline
+ [Average]  P: 84.6 R: 83.65 F1: 84.12 EX: 22.94
+Decoding took 59 millis
+Your system
+ [Average]  P: 86.07 R: 85.2 F1: 85.63 EX: 28.83
+Decoding took 652 millis
+ 150,497
+
 
 
 

@@ -52,20 +52,27 @@ abstract class Reranker implements ParsingReranker {
     addFeature("Posn=" + idx, feats, addFeaturesToIndexer);
 
     for (AnchoredTree<String> subtree : anchoredTree.toSubTreeList()) {
+      String label = subtree.getLabel();
       if (!subtree.isPreTerminal() && !subtree.isLeaf()) {
-        String rule = "Rule=" + subtree.getLabel() + " ->";
+        String rule = "Rule=" + label + " ->";
         int numChildren = 0;
         for (AnchoredTree<String> child : subtree.getChildren()) {
           rule += " " + child.getLabel();
         }
         addFeature(rule, feats, addFeaturesToIndexer);
-//        addFeature("RuleNumChildren=" + subtree.getLabel() + numChildren, feats, addFeaturesToIndexer);
+//        addFeature("RuleNumChildren=" + label + numChildren, feats, addFeaturesToIndexer);
 
-        if (!subtree.getLabel().equals("S")) {
-          String ruleLen = "RuleLen=" + subtree.getLabel() + " " + subtree.getSpanLength();
+        if (!label.equals("S") && !label.equals("ROOT")) {
+          String ruleLen = "RuleLen=" + label + " " + subtree.getSpanLength();
           addFeature(ruleLen, feats, addFeaturesToIndexer);
 
+          String ruleWordBegin = "RuleWordBegin=" + label + " "
+                  + dictionary.get(words.get(subtree.getStartIdx()));
+          addFeature(ruleWordBegin, feats, goldOnly);
 
+          String ruleWordEnd = "RuleWordEnd=" + label + " "
+                  + dictionary.get(words.get(subtree.getEndIdx() - 1));
+          addFeature(ruleWordEnd, feats, goldOnly);
         }
       }
     }
@@ -143,13 +150,14 @@ class Dictionary {
       }
     }
 
-    for (String key : counter.keySet()) {
+    for (String key : new ArrayList<String>(counter.keySet())) {
       if (counter.get(key) < DISCARD_THRESHOLD) counter.remove(key);
     }
   }
 
   private void addTree(Tree<String> tree) {
     for (String node : tree.getYield()) {
+      node = node.toLowerCase();
       while (!node.isEmpty()) {
         Integer count = counter.get(node);
         if (count == null) count = 0;
@@ -160,7 +168,9 @@ class Dictionary {
   }
 
   public String get(String key) {
+    key = key.toLowerCase();
     while (!counter.containsKey(key)) {
+      if (key.length() == 1) return "";
       key = key.substring(1);
     }
     return key;
