@@ -39,16 +39,14 @@ This feature increased F1 to 85.21. Adding lengths per rule further increased it
 
 Many potential features involve some sort of lexicalization, which comes with the issue of sparsity
 where words aren't seen frequently in training data. To combat this, I borrow the idea from the
-Less Grammar, More Features paper of representing words as their
+Less Grammar, More Features paper of representing words as their longest suffix that occurs more
+than 100 times.\footnote{The word "SEAQ" presented itself as an interesting edge case, and was represented
+as empty string}
 
-Training took 152894 millis
-1-best baseline
- [Average]  P: 84.6 R: 83.65 F1: 84.12 EX: 22.94
-Decoding took 59 millis
-Your system
- [Average]  P: 86.07 R: 85.2 F1: 85.63 EX: 28.83
-Decoding took 652 millis
- 150,497
+Using this new technique, I added features to mark the starting and ending words of rules.
+Case sensitivity was tested, and it made no difference so case insensitive was chosen for performance.
+Adding these features brought feature count to 143,529. It trains in 153 seconds
+and achieves a F1 of 85.63, which is now more than 1.5 points above the 1-best baseline.
 
 
 

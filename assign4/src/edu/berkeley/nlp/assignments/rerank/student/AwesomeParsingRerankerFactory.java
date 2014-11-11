@@ -68,11 +68,18 @@ abstract class Reranker implements ParsingReranker {
 
           String ruleWordBegin = "RuleWordBegin=" + label + " "
                   + dictionary.get(words.get(subtree.getStartIdx()));
-          addFeature(ruleWordBegin, feats, goldOnly);
+          addFeature(ruleWordBegin, feats, addFeaturesToIndexer);
 
           String ruleWordEnd = "RuleWordEnd=" + label + " "
                   + dictionary.get(words.get(subtree.getEndIdx() - 1));
-          addFeature(ruleWordEnd, feats, goldOnly);
+          addFeature(ruleWordEnd, feats, addFeaturesToIndexer);
+
+          String ruleTagBegin = "RuleTagBegin=" + label + " " + poss.get(subtree.getStartIdx());
+          addFeature(ruleTagBegin, feats, addFeaturesToIndexer);
+
+          String ruleTagEnd = "RuleTagEnd=" + label + " " + poss.get(subtree.getEndIdx() - 1);
+          addFeature(ruleTagEnd, feats, addFeaturesToIndexer);
+
         }
       }
     }
