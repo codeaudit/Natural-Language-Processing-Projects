@@ -22,7 +22,7 @@
 
 \section{Learning Algorithms}
 
-use best F1 as gold
+
 
 \section{Features}
 
@@ -42,7 +42,7 @@ Less Grammar, More Features paper of representing words as their longest suffix 
 than 100 times. As a preprocessing step, a suffix trie with counts is constructed from
 all tree yields, then any nodes with fewer counts than threshold are pruned before feature calculation step.
 \footnote{The word ``SEAQ'' presented itself as an interesting edge case, and was represented
-as empty string}
+as empty string} As an added bonus, this reduces feature count and speeds up training.
 
 Using this new technique, I added features to mark the starting and ending words of rules.
 This captures some information about the lexical and syntactic heads of the trees.
@@ -80,6 +80,12 @@ important for short spans with punctuation, F1 remained at 86.71. I then added b
 spans, but only took the first and last two words to prevent sparsity, and the F1 decreased, so
 this feature class was abandoned.
 
+Lastly, I experimented with using only features from gold trees (positive features) 
+versus using features from all training trees, including negative features. Using negative 
+features was much better for F1 as those features provided examples of bad trees.
+The Hall paper uses gold features and hashes negative features, but my feature count was
+not high enough that hashing negative features was necessary. 
+
 \section{Regularization Tuning & Final Results}
 
 I experimented with various regularization constants, ranging from 0 to 1, and most values
@@ -88,7 +94,7 @@ The F1 scores were not linear or monotonic with $\lambda$.
 Even with no regularization, F1 remained at 86.71, suggesting that regularization is not important
 for this instance.
 
-I settled on a $\lambda$ of 0.1 with a F1 of 86.72, using 450,110 features, and training in
+I settled on a $\lambda$ of 0.1 with a F1 of 86.72, using only 450,110 features, and training in
 236 seconds.
 
 

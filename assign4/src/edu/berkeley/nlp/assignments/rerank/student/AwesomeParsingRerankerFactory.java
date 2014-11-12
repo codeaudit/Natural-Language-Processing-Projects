@@ -20,7 +20,7 @@ import java.util.*;
 public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 
   public ParsingReranker trainParserReranker(Iterable<Pair<KbestList,Tree<String>>> kbestListsAndGoldTrees) {
-     return new PerceptronReranker(kbestListsAndGoldTrees);
+     return new MaximumEntropyReranker(kbestListsAndGoldTrees);
   }
 }
 
