@@ -20,7 +20,7 @@ import java.util.*;
 public class AwesomeParsingRerankerFactory implements ParsingRerankerFactory {
 
   public ParsingReranker trainParserReranker(Iterable<Pair<KbestList,Tree<String>>> kbestListsAndGoldTrees) {
-     return new MaximumEntropyReranker(kbestListsAndGoldTrees);
+     return new PerceptronReranker(kbestListsAndGoldTrees);
   }
 }
 
@@ -410,25 +410,58 @@ class PerceptronReranker extends Reranker {
 
   final static int NUM_ITERATIONS = 5;
   ArrayList<Integer> weights;
+  ArrayList<BestList> trainingData;
 
   PerceptronReranker(Iterable<Pair<KbestList, Tree<String>>> kbestListsAndGoldTrees) {
     weights = new ArrayList<Integer>();
 
+    dictionary = new Dictionary(kbestListsAndGoldTrees);
+
+    System.out.println("Calculating features");
+    trainingData = new ArrayList<BestList>();
+    for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
+      KbestList kbestList = pair.getFirst();
+      Tree<String> goldTree = pair.getSecond();
+
+      if (!isTreeInList(goldTree, kbestList.getKbestTrees())) {
+        goldTree = kbestList.getKbestTrees().get(goldTreePosition(goldTree, kbestList.getKbestTrees()));
+      }
+
+      BestList bestList = new BestList();
+      for (int pos = 0; pos < kbestList.getKbestTrees().size(); pos++) {
+        TreeWrapper treeWrapper = new TreeWrapper();
+
+        treeWrapper.features = extractFeatures(kbestList, pos);
+        treeWrapper.position = pos;
+        bestList.trees.add(treeWrapper);
+
+        if (kbestList.getKbestTrees().get(pos).hashCode() == goldTree.hashCode()) {
+          TreeWrapper goldTreeWrapper = new TreeWrapper();
+          goldTreeWrapper.features = treeWrapper.features;
+          goldTreeWrapper.position = pos;
+
+          bestList.goldTree = goldTreeWrapper;
+        }
+      }
+
+      trainingData.add(bestList);
+      if (trainingData.size() % 100 == 0) {
+        System.out.print('\r');
+        System.out.print(Integer.toString(trainingData.size()) + " lists processed");
+      }
+    }
+    System.out.print('\n');
+
     for (int iter_number = 0; iter_number < NUM_ITERATIONS; iter_number++) {
       System.out.println("iter_number = " + iter_number);
-      for (Pair<KbestList, Tree<String>> pair : kbestListsAndGoldTrees) {
-
-        KbestList kbestList = pair.getFirst();
-        Tree<String> goldTree = pair.getSecond();
-
-        if (!isTreeInList(goldTree, kbestList.getKbestTrees())) continue;
+      for (BestList bestList : trainingData) {
 
         int[] predictedFeats = null;
         int[] goldFeats = null;
         int predictedScore = Integer.MIN_VALUE;
-        for (int index = 0; index < kbestList.getKbestTrees().size(); index++) {
-          int[] features = extractFeatures(kbestList, index);
-          if (kbestList.getKbestTrees().get(index).hashCode() == goldTree.hashCode()) {
+        for (TreeWrapper tree : bestList.trees) {
+          int[] features = tree.features;
+          if (tree.position == bestList.goldTree.position) {
             goldFeats = features;
           }
 

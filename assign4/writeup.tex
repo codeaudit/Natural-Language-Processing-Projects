@@ -80,14 +80,16 @@ important for short spans with punctuation, F1 remained at 86.71. I then added b
 spans, but only took the first and last two words to prevent sparsity, and the F1 decreased, so
 this feature class was abandoned.
 
-\section{Regularization Tuning}
+\section{Regularization Tuning & Final Results}
 
 I experimented with various regularization constants, ranging from 0 to 1, and most values
 made little to no difference (varying F1 by 0.01), with some decreasing F1 by a small amount. 
 The F1 scores were not linear or monotonic with $\lambda$. 
 Even with no regularization, F1 remained at 86.71, suggesting that regularization is not important
 for this instance.
-I settled on a $\lambda$ of 0.1 with a F1 of 86.72.
+
+I settled on a $\lambda$ of 0.1 with a F1 of 86.72, using 450,110 features, and training in
+236 seconds.
 
 
 \end{document}
