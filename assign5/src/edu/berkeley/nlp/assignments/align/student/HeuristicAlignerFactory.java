@@ -1,6 +1,7 @@
 package edu.berkeley.nlp.assignments.align.student;
 
 import edu.berkeley.nlp.langmodel.NgramLanguageModel;
+import edu.berkeley.nlp.mt.Alignment;
 import edu.berkeley.nlp.mt.SentencePair;
 import edu.berkeley.nlp.mt.WordAligner;
 import edu.berkeley.nlp.mt.WordAlignerFactory;
@@ -14,7 +15,19 @@ public class HeuristicAlignerFactory implements WordAlignerFactory
 
 	public WordAligner newAligner(Iterable<SentencePair> trainingData) {
 
-		 return null;
+		 return new HeuristicAligner(trainingData);
 	}
 
+}
+
+class HeuristicAligner implements WordAligner {
+
+	HeuristicAligner(Iterable<SentencePair> trainingData) {
+		System.out.println("hi");
+	}
+
+	public Alignment alignSentencePair(SentencePair sentencePair) {
+
+		return null;
+	}
 }
