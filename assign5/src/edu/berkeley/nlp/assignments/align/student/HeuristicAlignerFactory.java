@@ -30,8 +30,8 @@ class HeuristicAligner implements WordAligner {
 	HeuristicAligner(Iterable<SentencePair> trainingData) {
 		int count = 0;
 		for (SentencePair sentencePair : trainingData) {
-			if (count++ % 1000 == 0) {
-				System.out.print("\r" + count + "sentences processed");
+			if (count % 100 == 0) {
+				System.out.print("\r" + count + " sentences processed");
 			}
 			for (String englishWord : sentencePair.getEnglishWords()) {
 				englishCounter.incrementCount(englishWord, 1);
@@ -42,6 +42,7 @@ class HeuristicAligner implements WordAligner {
 			for (String frenchWord : sentencePair.getFrenchWords()) {
 				frenchCounter.incrementCount(frenchWord, 1);
 			}
+			count++;
 		}
 	}
 
