@@ -23,10 +23,14 @@
 \section{Heuristic Aligner}
 
 As a heuristic aligner, I chose to score alignments using ratio of counts. Each French word
-is aligned to the highest scoring English word. All training data is used as counts scale well.
+is aligned to the highest scoring English word. Training size is set at 10,000.
 At first, I tried scoring $S = c(e, f) / (c(e) \cdot c(f))$, but this performed worse than the
 baseline aligner. Tweaking the formula to $S = c(e, f) / (c(e) + c(f))$, AER improved to 58.3%
-and BLEU improved to 12.421.
+and BLEU improved to 12.421. Scoring using normalized counts (count divided by total) drops
+performance to 58.5% AER and 12.208 BLEU, so this change was reverted.
+
+Building this aligner with 10,000 sentences takes 1 second. Increasing training size to 100,000
+
 
 
 
