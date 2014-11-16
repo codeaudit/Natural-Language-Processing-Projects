@@ -1,0 +1,33 @@
+
+\documentclass[11pt]{article}
+\usepackage{acl2014}
+\usepackage{times}
+\usepackage{url}
+\usepackage{latexsym}
+\usepackage{graphicx}
+
+\title{CS 288: Machine Translation}
+
+\author{Anting Shen \\
+  23566738 \\
+  {\tt antingshen@berkeley.edu} \\
+}
+\date{October 17, 2014}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+
+\section{Heuristic Aligner}
+
+As a heuristic aligner, I chose to score alignments using ratio of counts. Each French word
+is aligned to the highest scoring English word. All training data is used as counts scale well.
+At first, I tried scoring $S = c(e, f) / (c(e) \cdot c(f))$, but this performed worse than the
+baseline aligner. Tweaking the formula to $S = c(e, f) / (c(e) + c(f))$, AER improved to 58.3%
+and BLEU improved to 12.421.
+
+
+
+\end{document}

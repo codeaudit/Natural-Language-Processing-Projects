@@ -23,6 +23,8 @@ public class HeuristicAlignerFactory implements WordAlignerFactory
 
 class HeuristicAligner implements WordAligner {
 
+	int totalEnglish = 0;
+	int totalFrench = 0;
 	Counter<String> frenchCounter = new Counter<String>();
 	Counter<String> englishCounter = new Counter<String>();
 	Counter<String> pairCounter = new Counter<String>();
@@ -31,12 +33,14 @@ class HeuristicAligner implements WordAligner {
 		for (SentencePair sentencePair : trainingData) {
 			for (String englishWord : sentencePair.getEnglishWords()) {
 				englishCounter.incrementCount(englishWord, 1);
+				totalEnglish++;
 				for (String frenchWord : sentencePair.getFrenchWords()) {
 					pairCounter.incrementCount(englishWord + "^" + frenchWord, 1);
 				}
 			}
 			for (String frenchWord : sentencePair.getFrenchWords()) {
 				frenchCounter.incrementCount(frenchWord, 1);
+				totalFrench++;
 			}
 		}
 	}
@@ -52,7 +56,8 @@ class HeuristicAligner implements WordAligner {
 			double bestScore = Double.NEGATIVE_INFINITY;
 			for (String englishWord : sentencePair.getEnglishWords()) {
 				double score = pairCounter.getCount(englishWord + "^" + frenchWord);
-				score /= (englishCounter.getCount(englishWord) + englishCounter.getCount(frenchWord));
+				score /= (englishCounter.getCount(englishWord)/totalEnglish
+								+ englishCounter.getCount(frenchWord)/totalFrench);
 				if (score > bestScore) {
 					bestPos = englishPos;
 					bestScore = score;
