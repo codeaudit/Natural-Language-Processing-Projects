@@ -52,7 +52,7 @@ class HeuristicAligner implements WordAligner {
 			double bestScore = Double.NEGATIVE_INFINITY;
 			for (String englishWord : sentencePair.getEnglishWords()) {
 				double score = pairCounter.getCount(englishWord + "^" + frenchWord);
-				score /= (englishCounter.getCount(englishWord) * englishCounter.getCount(frenchWord));
+				score /= (englishCounter.getCount(englishWord) + englishCounter.getCount(frenchWord));
 				if (score > bestScore) {
 					bestPos = englishPos;
 					bestScore = score;
