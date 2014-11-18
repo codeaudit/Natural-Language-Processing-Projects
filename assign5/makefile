@@ -1,6 +1,6 @@
 
-TYPE=HEURISTIC
-TRAIN=200000
+TYPE=MODEL1
+TRAIN=10000
 
 FLAGS=-cp assign_align.jar:assign_align-submit.jar -server edu.berkeley.nlp.assignments.align.AlignmentTester -path align_data
 

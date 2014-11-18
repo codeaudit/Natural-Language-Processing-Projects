@@ -31,7 +31,12 @@ performance to 58.5% AER and 12.208 BLEU, so this change was reverted.
 
 Building this aligner with 10,000 sentences takes 1 second. Increasing training size to 100,000
 decreases AER to 46.1%, increases time to 23 seconds, and BLEU to 17.270. Further increasing
-size to 500,000
+size to 200,000 decreases AER to 44%, and increases time to 2 minutes 52 seconds. Phrase table
+took too long to build with this data size so BLEU was not computed.
+
+\section{Model 1 Aligner}
+
+
 
 
 
