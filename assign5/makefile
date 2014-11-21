@@ -13,13 +13,19 @@ pull:
 	git pull
 
 sanity: assign_align-submit.jar
-	java $(FLAGS) -ea -mx50m -alignerType $(TYPE) -sanityCheck -maxTrain 0
+	java -ea -mx50m $(FLAGS) -alignerType $(TYPE) -sanityCheck -maxTrain 0
 
 full_local: assign_align-submit.jar
-	java $(FLAGS) -ea -Xmx8g -alignerType $(TYPE) -maxTrain $(TRAIN) -data test -noprint
+	java -ea -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain $(TRAIN) -data test -noprint
 
 real_local: assign_align-submit.jar
-	java $(FLAGS) -Xmx8g -alignerType $(TYPE) -maxTrain 10000 -data test -noprint
+	java -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain 10000 -data test -noprint
 
 full:
 	ssh i.anting.me 'cd ~/288/assign5 && make pull && make full_local'
+
+update:
+	git add .
+	git commit --amend --no-edit
+	git push -f
+	make full

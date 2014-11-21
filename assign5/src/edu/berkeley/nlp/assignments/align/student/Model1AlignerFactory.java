@@ -8,6 +8,7 @@ import edu.berkeley.nlp.mt.WordAlignerFactory;
 import edu.berkeley.nlp.mt.decoder.Decoder;
 import edu.berkeley.nlp.mt.decoder.DecoderFactory;
 import edu.berkeley.nlp.mt.decoder.DistortionModel;
+import edu.berkeley.nlp.util.Counter;
 import edu.berkeley.nlp.util.Indexer;
 
 import java.util.ArrayList;
@@ -41,9 +42,9 @@ class Model1Aligner implements WordAligner {
 	Indexer<String> frenchIndexer = new Indexer<String>();
 	ArrayList<IndexedPair> indexedPairs = new ArrayList<IndexedPair>();
 
-	static double[] alignProb = new double[64];
+	static double[] alignProb = new double[128];
 
-	double[][] probabilities;
+	Counter<Integer> probabilities;
 
 	Model1Aligner(Iterable<SentencePair> trainingData) {
 		int nullIndex = englishIndexer.addAndGetIndex("<NULL>");
@@ -67,28 +68,31 @@ class Model1Aligner implements WordAligner {
 			}
 			indexedPairs.add(new IndexedPair(indexedFrench, indexedEnglish));
 		}
+		assert englishIndexer.size() < 1 << 16;
+		assert frenchIndexer.size() < 1 << 16;
 
-		probabilities = new double[englishIndexer.size()][frenchIndexer.size()];
+		probabilities = new Counter<Integer>();
 		double uniform = 1d/englishIndexer.size();
-		for (double[] english : probabilities) {
-			Arrays.fill(english, uniform);
-		}
 
 		int iterationNumber = 0;
 		while (iterationNumber < MAX_ITERATIONS) {
 			System.out.print("\riterationNumber = " + iterationNumber);
 
-			double[][] newProbabilities = new double[englishIndexer.size()][frenchIndexer.size()];
+			Counter<Integer> newProbabilities = new Counter<Integer>();
 			double[] englishProbSums = new double[englishIndexer.size()];
 			for (IndexedPair sentencePair : indexedPairs) {
 
-				int frenchIndex = 0;
 				for (int frenchWord : sentencePair.frenchWords) {
 
 					int englishIndex = 0;
 					double totalProb = 0;
 					for (int englishWord : sentencePair.englishWords) {
-						double prob = probabilities[englishWord][frenchWord];
+						double prob;
+						if (iterationNumber == 0) {
+							prob = uniform;
+						} else {
+							prob = probabilities.getCount(getKey(englishWord, frenchWord));
+						}
 						alignProb[englishIndex] = prob;
 						totalProb += prob;
 						englishIndex++;
@@ -97,34 +101,21 @@ class Model1Aligner implements WordAligner {
 					englishIndex = 0;
 					for (int englishWord : sentencePair.englishWords) {
 						double prob = alignProb[englishIndex] / totalProb;
-						newProbabilities[englishWord][frenchWord] += prob;
+						newProbabilities.incrementCount(getKey(englishWord, frenchWord), prob);
 						englishProbSums[englishWord] += prob;
 						englishIndex++;
 					}
-
-					frenchIndex++;
 				}
 			}
 
-			int englishIndex = 0;
-			for (double[] englishProbs : newProbabilities) {
-				assert sumArray(englishProbs) == englishProbSums[englishIndex];
-				for (int i = 0; i < englishProbs.length; i++) {
-					englishProbs[i] /= englishProbSums[englishIndex];
-				}
-				englishIndex++;
+			for (Integer key : newProbabilities.keySet()) {
+				double probSum = englishProbSums[getEnglish(key)];
+				double newCount = newProbabilities.getCount(key) / probSum;
+				newProbabilities.setCount(key, newCount);
 			}
-
+			probabilities = newProbabilities;
 			iterationNumber++;
 		}
-	}
-
-	double sumArray(double[] array) {
-		double sum = 0;
-		for (double elem : array) {
-			sum += elem;
-		}
-		return sum;
 	}
 
 	public Alignment alignSentencePair(SentencePair sentencePair) {
@@ -136,13 +127,13 @@ class Model1Aligner implements WordAligner {
 			if (indexedFrench == -1) continue;
 
 			int englishPos = 0;
-			double bestScore = probabilities[0][indexedFrench];
+			double bestScore = probabilities.getCount(getKey(0, indexedFrench));
 			int bestPos = -1;
 			for (String englishWord : sentencePair.getEnglishWords()) {
 				int indexedEnglish = englishIndexer.indexOf(englishWord);
 				if (indexedEnglish == -1) continue;
 
-				double prob = probabilities[indexedEnglish][indexedFrench];
+				double prob = probabilities.getCount(getKey(indexedEnglish, indexedFrench));
 				if (prob > bestScore) {
 					bestScore = prob;
 					bestPos = englishPos;
@@ -156,5 +147,25 @@ class Model1Aligner implements WordAligner {
 		}
 
 		return alignment;
+	}
+
+	Integer getKey(int englishIndex, int frenchIndex) {
+		assert frenchIndex < 1 << 16;
+		assert englishIndex < 1 << 16;
+		assert frenchIndex < frenchIndexer.size();
+		assert englishIndex < englishIndexer.size();
+		int key = (frenchIndex << 16) + englishIndex;
+		assert getEnglish(key) == englishIndex;
+		assert getFrench(key) == frenchIndex;
+
+		return key;
+	}
+
+	int getEnglish(int key) {
+		return key & ((1 << 16) - 1);
+	}
+
+	int getFrench(int key) {
+		return key >>> 16;
 	}
 }
