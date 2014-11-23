@@ -36,6 +36,14 @@ took too long to build with this data size so BLEU was not computed.
 
 \section{Model 1 Aligner}
 
+My first model 1 implementation uses 100 iterations of soft-EM. It uses a counter to store
+probabilities, and a new counter is created each iteration and is filled using probabilities
+calculated from values from the previous iteration. It is not intersected, trains in 2m31s
+using 803M memory, and achieves AER of 38.3% and BLEU of 15.795 on the size 10,000 set.
+
+Precision: 0.5569471624266145
+Recall: 0.7308073303615651
+
 
 
 

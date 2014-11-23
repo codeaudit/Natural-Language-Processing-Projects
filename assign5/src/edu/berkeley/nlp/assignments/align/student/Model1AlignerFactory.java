@@ -10,6 +10,7 @@ import edu.berkeley.nlp.mt.decoder.DecoderFactory;
 import edu.berkeley.nlp.mt.decoder.DistortionModel;
 import edu.berkeley.nlp.util.Counter;
 import edu.berkeley.nlp.util.Indexer;
+import edu.berkeley.nlp.util.Pair;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,38 +37,45 @@ class IndexedPair {
 
 class Model1Aligner implements WordAligner {
 
+	NonIntersectedModel1Aligner aligner, reversedAligner;
+	public Model1Aligner(Iterable<SentencePair> trainingData) {
+		aligner = new NonIntersectedModel1Aligner(trainingData, false);
+		reversedAligner = new NonIntersectedModel1Aligner(trainingData, true);
+	}
+
+	public Alignment alignSentencePair(SentencePair sentencePair) {
+		Alignment alignment = new Alignment();
+
+		Alignment forwardAlignment = aligner.alignSentencePair(sentencePair);
+		Alignment reverseAlignment = reversedAligner
+						.alignSentencePair(sentencePair.getReversedCopy())
+						.getReverseCopy();
+
+		for (Pair<Integer, Integer> pair : forwardAlignment.getSureAlignments()) {
+			if (reverseAlignment.containsSureAlignment(pair.getFirst(), pair.getSecond())) {
+				alignment.addAlignment(pair.getFirst(), pair.getSecond(), true);
+			}
+		}
+
+		return alignment;
+	}
+}
+
+class NonIntersectedModel1Aligner implements WordAligner {
+
 	static int MAX_ITERATIONS = 100;
 
 	Indexer<String> englishIndexer = new Indexer<String>();
 	Indexer<String> frenchIndexer = new Indexer<String>();
 	ArrayList<IndexedPair> indexedPairs = new ArrayList<IndexedPair>();
 
-	static double[] alignProb = new double[128];
+	double[] alignProb = new double[256];
 
 	Counter<Integer> probabilities;
 
-	Model1Aligner(Iterable<SentencePair> trainingData) {
-		int nullIndex = englishIndexer.addAndGetIndex("<NULL>");
-		assert nullIndex == 0;
-		for (SentencePair sentencePair : trainingData) {
-			List<String> frenchWords = sentencePair.getFrenchWords();
-			int[] indexedFrench = new int[frenchWords.size()];
-			List<String> englishWords = sentencePair.getEnglishWords();
-			int[] indexedEnglish = new int[englishWords.size() + 1];
+	NonIntersectedModel1Aligner(Iterable<SentencePair> trainingData, boolean reverse) {
+		processTrainingData(trainingData, reverse);
 
-			int index = 0;
-			for (String frenchWord : frenchWords) {
-				indexedFrench[index] = frenchIndexer.addAndGetIndex(frenchWord);
-				index++;
-			}
-			index = 1;
-			assert indexedEnglish[0] == 0;
-			for (String englishWord : englishWords) {
-				indexedEnglish[index] = englishIndexer.addAndGetIndex(englishWord);
-				index++;
-			}
-			indexedPairs.add(new IndexedPair(indexedFrench, indexedEnglish));
-		}
 		assert englishIndexer.size() < 1 << 16;
 		assert frenchIndexer.size() < 1 << 16;
 
@@ -115,6 +123,43 @@ class Model1Aligner implements WordAligner {
 			}
 			probabilities = newProbabilities;
 			iterationNumber++;
+		}
+	}
+
+	private void processTrainingData(Iterable<SentencePair> trainingData) {
+		processTrainingData(trainingData, false);
+	}
+
+	private void processTrainingData(Iterable<SentencePair> trainingData, boolean reverse) {
+		int nullIndex = englishIndexer.addAndGetIndex("<NULL>");
+		assert nullIndex == 0;
+
+		for (SentencePair sentencePair : trainingData) {
+
+			List<String> frenchWords, englishWords;
+			if (!reverse) {
+				frenchWords = sentencePair.getFrenchWords();
+				englishWords = sentencePair.getEnglishWords();
+			} else {
+				frenchWords = sentencePair.getEnglishWords();
+				englishWords = sentencePair.getFrenchWords();
+			}
+
+			int[] indexedFrench = new int[frenchWords.size()];
+			int[] indexedEnglish = new int[englishWords.size() + 1];
+
+			int index = 0;
+			for (String frenchWord : frenchWords) {
+				indexedFrench[index] = frenchIndexer.addAndGetIndex(frenchWord);
+				index++;
+			}
+			index = 1;
+			assert indexedEnglish[0] == 0;
+			for (String englishWord : englishWords) {
+				indexedEnglish[index] = englishIndexer.addAndGetIndex(englishWord);
+				index++;
+			}
+			indexedPairs.add(new IndexedPair(indexedFrench, indexedEnglish));
 		}
 	}
 
