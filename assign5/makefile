@@ -1,5 +1,5 @@
 
-TYPE=MODEL1
+TYPE=HMM
 TRAIN=10000
 
 FLAGS=-cp assign_align.jar:assign_align-submit.jar -server edu.berkeley.nlp.assignments.align.AlignmentTester -path align_data

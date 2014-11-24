@@ -41,10 +41,15 @@ probabilities, and a new counter is created each iteration and is filled using p
 calculated from values from the previous iteration. It is not intersected, trains in 2m31s
 using 803M memory, and achieves AER of 38.3% and BLEU of 15.795 on the size 10,000 set.
 
-Precision: 0.5569471624266145
-Recall: 0.7308073303615651
+Using an intersected model instead, where the model only predicts alignments that are found by
+aligners in both directions, precision increased from 0.56 to 0.84, while recall decreased from
+0.73 to 0.63. This was expected as the intersected model predicts a sparser alignment.
+Interestingly, AER and BLEU both decreased to 27.4% and 13.2, respectively. This shows that
+improvements in AER do not always increase BLEU, perhaps due to the translation system
+not working as well using sparser alignments. The intersected model also doubles training time
+to 5m5s to train both models in both directions.
 
-
+\section{HMM Aligner}
 
 
 

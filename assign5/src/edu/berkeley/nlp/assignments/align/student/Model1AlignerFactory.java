@@ -33,6 +33,14 @@ class IndexedPair {
 		this.frenchWords = frenchWords;
 		this.englishWords = englishWords;
 	}
+
+	int[] getFrenchWords(boolean reverse) {
+		return reverse ? englishWords : frenchWords;
+	}
+
+	int[] getEnglishWords(boolean reverse) {
+		return reverse ? frenchWords : englishWords;
+	}
 }
 
 class Model1Aligner implements WordAligner {
