@@ -9,8 +9,8 @@ assign_align-submit.jar:
 	ant -f build_assign_align.xml
 
 pull:
-	git reset --hard HEAD~1
-	git pull
+	git fetch --all
+	git reset --hard origin/master
 
 sanity: assign_align-submit.jar
 	java -ea -mx50m $(FLAGS) -alignerType $(TYPE) -sanityCheck -maxTrain 0
@@ -23,6 +23,9 @@ real_local: assign_align-submit.jar
 
 full:
 	ssh i.anting.me 'cd ~/288/assign5 && make pull && make full_local'
+
+kill:
+	ssh i.anting.me 'killall java'
 
 update:
 	git add .
