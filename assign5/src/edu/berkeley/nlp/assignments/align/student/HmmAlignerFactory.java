@@ -84,18 +84,14 @@ class IntersectedHmmAligner implements WordAligner {
 		final int MAX_TRANSITION = 10;
 		final int TRANSITION_SIZE = MAX_TRANSITION * 2 + 1;
 		final double NULL_PROBABILITY = 0.2;
+		double[] englishProbSums = new double[englishIndexer.size()];
 
 		HmmAligner(boolean reverse) {
 			this.reverse = reverse;
 
 			probabilities = new Counter<Integer>();
 			double uniform = 1.0/englishIndexer.size();
-
-			transitions = new double[TRANSITION_SIZE];
-			Arrays.fill(transitions, 0.01);
-			transitions[1 + MAX_TRANSITION] = 0.3;
-			transitions[0 + MAX_TRANSITION] += 0.15;
-			transitions[2 + MAX_TRANSITION] += 0.15;
+			transitions = getInitialTransitions();
 
 			int iterationNumber = 0;
 			while (iterationNumber < MAX_ITERATIONS) {
@@ -161,18 +157,55 @@ class IntersectedHmmAligner implements WordAligner {
 						}
 					}
 
-					double totalProb;
+					double totalProb, lastTotal = 0;
+					if (iterationNumber != 0) Arrays.fill(englishProbSums, 0);
 					for (int frenchIndex = 0; frenchIndex < frenchLength; frenchIndex++) {
 						double[] alphaBetas = TEMP_ARRAY;
-						double nullProb = 0;
 						totalProb = 0;
+						double nullProb = 0;
 						for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
-							alphaBetas[englishIndex] = alphas[frenchIndex][englishIndex] * betas[frenchIndex][englishIndex];
-
+							double beta = betas[frenchIndex][englishIndex];
+							double alphaBeta = alphas[frenchIndex][englishIndex] * beta;
+							alphaBetas[englishIndex] = alphaBeta;
+							totalProb += alphaBeta;
+							nullProb += alphas[frenchIndex][englishIndex + NULL_OFFSET] * beta;
 						}
+						totalProb += nullProb;
+						for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
+							int key = getKey(englishWords[englishIndex], frenchWords[frenchIndex]);
+							double prob = alphaBetas[englishIndex] / totalProb;
+							newProbabilities.incrementCount(key, prob);
+							englishProbSums[englishWords[englishIndex]] += prob;
+						}
+						int key = getKey(NULL_INDEX, frenchWords[frenchIndex]);
+						newProbabilities.incrementCount(key, nullProb / totalProb);
+						englishProbSums[NULL_INDEX] += nullProb / totalProb;
+
+						assert lastTotal == 0 || totalProb == lastTotal : totalProb + " != " + lastTotal;
+						lastTotal = totalProb;
 					}
+					normalizeProbabilities(newProbabilities);
+					probabilities = newProbabilities;
 				}
+				iterationNumber++;
 			}
+		}
+
+		void normalizeProbabilities(Counter<Integer> probabilities) {
+			for (Integer key : probabilities.keySet()) {
+				double probSum = englishProbSums[getEnglish(key)];
+				double newCount = probabilities.getCount(key) / probSum;
+				probabilities.setCount(key, newCount);
+			}
+		}
+
+		double[] getInitialTransitions() {
+			double[] transitions = new double[TRANSITION_SIZE];
+			Arrays.fill(transitions, 0.01);
+			transitions[1 + MAX_TRANSITION] = 0.3;
+			transitions[0 + MAX_TRANSITION] += 0.15;
+			transitions[2 + MAX_TRANSITION] += 0.15;
+			return transitions;
 		}
 
 		// double[from][to]
