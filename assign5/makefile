@@ -15,6 +15,9 @@ pull:
 sanity: assign_align-submit.jar
 	java -ea -mx50m $(FLAGS) -alignerType $(TYPE) -sanityCheck -maxTrain 0
 
+minitest: assign_align-submit.jar
+	java -ea -mx500m $(FLAGS) -alignerType $(TYPE) -data miniTest -printAlignments -justAlign -maxTrain 0
+
 full_local: assign_align-submit.jar
 	java -ea -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain $(TRAIN) -data test -noprint
 
