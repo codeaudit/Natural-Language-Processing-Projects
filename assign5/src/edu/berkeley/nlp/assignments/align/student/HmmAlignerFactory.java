@@ -19,14 +19,31 @@ public class HmmAlignerFactory implements WordAlignerFactory
 
 		 return new IntersectedHmmAligner(trainingData);
 	}
+
+	public static void main(String[] args) {
+		List<SentencePair> trainingData = new ArrayList<SentencePair>();
+		List<String> english1 = new ArrayList<String>();
+		english1.add("A");
+		List<String> french1 = new ArrayList<String>();
+		french1.add("X");
+		trainingData.add(new SentencePair(0, "", english1, french1));
+		List<String> english2 = new ArrayList<String>();
+		english2.add("A");
+		List<String> french2 = new ArrayList<String>();
+		french2.add("X");
+		french2.add("Y");
+		trainingData.add(new SentencePair(1, "", english2, french2));
+
+		WordAligner aligner = new IntersectedHmmAligner(trainingData);
+	}
 }
 
 class IntersectedHmmAligner implements WordAligner {
 
-	static int MAX_ITERATIONS = 1000;
-	static double NULL_PROBABILITY = 0.20;
+	static int MAX_ITERATIONS = 2;
+	static double NULL_PROBABILITY = 0.2;
 	final double NULL_ALPHABETA_MULTIPLIER = 1;
-	final int MAX_TRANSITION = 2;
+	final int MAX_TRANSITION = 1;
 
 	static int NULL_INDEX = 0;
 	static int MAX_FRENCH_LENGTH = 256;
@@ -124,6 +141,8 @@ class IntersectedHmmAligner implements WordAligner {
 
 					double[][] alphas = getAlphas(englishWords, frenchWords, transitionMatrix);
 					double[][] betas = getBetas(englishWords, frenchWords, transitionMatrix);
+					print("alphas", alphas);
+					print("betas", betas);
 
 					// Update Emissions
 					double totalProb, lastTotal = -1;
@@ -152,7 +171,7 @@ class IntersectedHmmAligner implements WordAligner {
 
 						assert lastTotal == -1 || Math.abs(totalProb - lastTotal) < 0.000001
 										: totalProb + " != " + lastTotal;
-						lastTotal = totalProb; // TODO: assert normalized
+						lastTotal = totalProb;
 					}
 
 					// Update Transitions
@@ -189,11 +208,11 @@ class IntersectedHmmAligner implements WordAligner {
 				normalizeProbabilities(newProbabilities);
 				probabilities = newProbabilities;
 				iterationNumber++;
+				print(probabilities);
+				print("transitions = ", transitions);
 			}
 			TEMP_ARRAY = null;
 			System.out.println("\nTraining complete!");
-			print(probabilities);
-			print("transitions = ", transitions);
 		}
 
 		public Alignment alignSentencePair(SentencePair sentencePair) {
@@ -219,6 +238,7 @@ class IntersectedHmmAligner implements WordAligner {
 			double[][] transitionMatrix = getTransitionMatrix(englishLength);
 			double[][] alphas = getAlphas(englishWords, frenchWords, transitionMatrix);
 			double[][] betas = getBetas(englishWords, frenchWords, transitionMatrix);
+
 
 			for (int frenchIndex = 0; frenchIndex < frenchLength; frenchIndex++) {
 				double bestScore = 0;
@@ -353,11 +373,11 @@ class IntersectedHmmAligner implements WordAligner {
 		double[] getInitialTransitions() {
 			double[] transitions = new double[TRANSITION_SIZE];
 			Arrays.fill(transitions, 0.0);
-			transitions[-2 + MAX_TRANSITION] += 1.0/15;
-			transitions[-1 + MAX_TRANSITION] += 2.0/15;
-			transitions[0 + MAX_TRANSITION] += 3.0/15;
-			transitions[1 + MAX_TRANSITION] = 4.0/15;
-			transitions[2 + MAX_TRANSITION] += 5.0/15;
+//			transitions[-2 + MAX_TRANSITION] += 1.0/15;
+			transitions[-1 + MAX_TRANSITION] += 1;
+			transitions[0 + MAX_TRANSITION] += 1;
+			transitions[1 + MAX_TRANSITION] += 1;
+//			transitions[2 + MAX_TRANSITION] += 5.0/15;
 			return transitions;
 		}
 
@@ -446,6 +466,14 @@ class IntersectedHmmAligner implements WordAligner {
 		System.out.print(prefix + '[');
 		for (double elem : arr) {
 			System.out.printf("%.2f, ", elem);
+		}
+		System.out.println(']');
+	}
+
+	void print(String prefix, double[][] arr) {
+		System.out.print(prefix + "[\n");
+		for (double[] subarr : arr) {
+			print("  ", subarr);
 		}
 		System.out.println(']');
 	}

@@ -30,6 +30,9 @@ full:
 kill:
 	ssh i.anting.me 'killall java'
 
+test: assign_align-submit.jar
+	java -ea -mx500m -cp assign_align.jar:assign_align-submit.jar -server edu.berkeley.nlp.assignments.align.student.HmmAlignerFactory
+
 update:
 	git add .
 	git commit --amend --no-edit
