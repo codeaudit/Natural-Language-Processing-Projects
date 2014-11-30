@@ -41,7 +41,7 @@ public class HmmAlignerFactory implements WordAlignerFactory
 class IntersectedHmmAligner implements WordAligner {
 
 	static int MAX_ITERATIONS = 20;
-	static double NULL_PROBABILITY = 0.0;
+	static double NULL_PROBABILITY = 0.1;
 	final double NULL_ALPHABETA_MULTIPLIER = 1;
 	final int MAX_TRANSITION = 10;
 	static int MAX_FRENCH_LENGTH = 30;
@@ -115,7 +115,7 @@ class IntersectedHmmAligner implements WordAligner {
 			transitions = getInitialTransitions();
 
 			while (iterationNumber < MAX_ITERATIONS) {
-//				System.out.print("\riterationNumber = " + iterationNumber);
+				System.out.print("\riterationNumber = " + iterationNumber);
 
 				Counter<Integer> newProbabilities = new Counter<Integer>();
 				double[] newTransitions = new double[TRANSITION_SIZE];
@@ -126,7 +126,7 @@ class IntersectedHmmAligner implements WordAligner {
 				int sentenceCount = 0;
 				for (IndexedPair indexedPair : indexedPairs) {
 					sentenceCount++;
-					System.out.print("\rIteration " + (iterationNumber + 1) + ": " + sentenceCount + "/" + indexedPairs.size());
+//					System.out.print("\rIteration " + (iterationNumber + 1) + ": " + sentenceCount + "/" + indexedPairs.size());
 					int[] frenchWords = indexedPair.getFrenchWords(reverse);
 					int[] englishWords = indexedPair.getEnglishWords(reverse);
 					int frenchLength = frenchWords.length;
@@ -198,8 +198,8 @@ class IntersectedHmmAligner implements WordAligner {
 								matrixSum += probability;
 							}
 						}
-						assert Math.abs(matrixSum - lastTotal) < A_SMALL_NUMBER
-										: "transitionMatrixSum " + matrixSum + " != " + lastTotal;
+//						assert Math.abs(matrixSum - lastTotal) < A_SMALL_NUMBER
+//										: "transitionMatrixSum " + matrixSum + " != " + lastTotal;
 //						print("wordTransitionMatrix = ", wordTransitionMatrix);
 						for (int prevEngIdx = 0; prevEngIdx < englishLength; prevEngIdx++) {
 							for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
