@@ -40,8 +40,8 @@ public class HmmAlignerFactory implements WordAlignerFactory
 
 class IntersectedHmmAligner implements WordAligner {
 
-	static int MAX_ITERATIONS = 10;
-	static double NULL_PROBABILITY = 0.2;
+	static int MAX_ITERATIONS = 20;
+	static double NULL_PROBABILITY = 0.0;
 	final double NULL_ALPHABETA_MULTIPLIER = 1;
 	final int MAX_TRANSITION = 10;
 	static int MAX_FRENCH_LENGTH = 30;
@@ -49,6 +49,7 @@ class IntersectedHmmAligner implements WordAligner {
 	static int MAX_ENGLISH_LENGTH = 256;
 	static int NULL_INDEX = 0;
 	static double[] TEMP_ARRAY = new double[MAX_ENGLISH_LENGTH];
+	static double A_SMALL_NUMBER = 0.000001;
 //	static double[] START_STATE_ALPHAS = {1.0};
 
 	Indexer<String> englishIndexer = new Indexer<String>();
@@ -125,7 +126,7 @@ class IntersectedHmmAligner implements WordAligner {
 				int sentenceCount = 0;
 				for (IndexedPair indexedPair : indexedPairs) {
 					sentenceCount++;
-					System.out.print("\rIteration " + iterationNumber + ": " + sentenceCount + "/" + indexedPairs.size());
+					System.out.print("\rIteration " + (iterationNumber + 1) + ": " + sentenceCount + "/" + indexedPairs.size());
 					int[] frenchWords = indexedPair.getFrenchWords(reverse);
 					int[] englishWords = indexedPair.getEnglishWords(reverse);
 					int frenchLength = frenchWords.length;
@@ -171,17 +172,16 @@ class IntersectedHmmAligner implements WordAligner {
 						newProbabilities.incrementCount(key, nullProb / totalProb);
 						englishProbSums[NULL_INDEX] += nullProb / totalProb;
 
-						assert lastTotal == -1 || Math.abs(totalProb - lastTotal) < 0.000001
+						assert lastTotal == -1 || Math.abs(totalProb - lastTotal) < A_SMALL_NUMBER
 										: totalProb + " != " + lastTotal;
 						lastTotal = totalProb;
 					}
 
 					// Update Transitions
-					double[][] wordTransitionMatrix = new double[englishLength][englishLength];
-					double matrixSum = 0;
 					for (int frenchIndex = 1; frenchIndex < frenchLength; frenchIndex++) {
+						double matrixSum = 0;
+						double[][] wordTransitionMatrix = new double[englishLength][englishLength];
 						for (int prevEngIdx = 0; prevEngIdx < englishLength; prevEngIdx++) {
-							Arrays.fill(wordTransitionMatrix[prevEngIdx], 0);
 							for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
 								double alpha = alphas[frenchIndex - 1][prevEngIdx];
 								double beta = betas[frenchIndex][englishIndex];
@@ -198,6 +198,9 @@ class IntersectedHmmAligner implements WordAligner {
 								matrixSum += probability;
 							}
 						}
+						assert Math.abs(matrixSum - lastTotal) < A_SMALL_NUMBER
+										: "transitionMatrixSum " + matrixSum + " != " + lastTotal;
+//						print("wordTransitionMatrix = ", wordTransitionMatrix);
 						for (int prevEngIdx = 0; prevEngIdx < englishLength; prevEngIdx++) {
 							for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
 								int index = englishIndex - prevEngIdx + MAX_TRANSITION;
@@ -277,7 +280,7 @@ class IntersectedHmmAligner implements WordAligner {
 					for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
 						if (iterationNumber == 0) {
 							currAlphas[englishIndex] = uniform;
-							currAlphas[englishIndex + NULL_OFFSET] = uniform;
+							currAlphas[englishIndex + NULL_OFFSET] = uniform * NULL_PROBABILITY;
 						} else {
 							double prob = probabilities.getCount(
 											getKey(englishWords[englishIndex], frenchWords[frenchIndex]));
@@ -286,8 +289,8 @@ class IntersectedHmmAligner implements WordAligner {
 							prob = probabilities.getCount(
 											getKey(NULL_INDEX, frenchWords[frenchIndex]));
 							currAlphas[englishIndex + NULL_OFFSET] = prob;
-							assert prob > 0 :  "P(" + frenchIndexer.get(frenchWords[frenchIndex])
-											+ "|" + englishIndexer.get(englishWords[englishIndex]) + ") = 0";
+							assert prob > 0 || NULL_PROBABILITY == 0 :
+											"P(" + frenchIndexer.get(frenchWords[frenchIndex]) + "|NULL) = 0";
 						}
 					}
 				} else {
@@ -322,7 +325,7 @@ class IntersectedHmmAligner implements WordAligner {
 						currAlphas[englishIndex + NULL_OFFSET] = prob;
 					}
 				}
-				assert max(currAlphas) > 0 : Arrays.toString(currAlphas) + frenchIndex;
+				assert max(currAlphas) > 0 : "Empty alphas at french index " + frenchIndex;
 			}
 			return alphas;
 		}
@@ -367,7 +370,8 @@ class IntersectedHmmAligner implements WordAligner {
 			for (Integer key : probabilities.keySet()) {
 				double probSum = englishProbSums[getEnglish(key)];
 				double count = probabilities.getCount(key);
-				assert probSum != 0 : Arrays.toString(englishProbSums) + getEnglish(key);
+				if (count == 0) continue;
+				assert probSum != 0 : Arrays.toString(englishProbSums) + getEnglish(key) + "-" + count;
 				assert !Double.isInfinite(count);
 				double newCount = count / probSum;
 				probabilities.setCount(key, newCount);
@@ -460,7 +464,11 @@ class IntersectedHmmAligner implements WordAligner {
 				if (!probabilities.containsKey(key)) continue;
 				System.out.print(frenchString + ":");
 				double prob = probabilities.getCount(key);
-				System.out.printf("%.2f, ", prob);
+				if (prob == 0) {
+					System.out.print("0,   ");
+				} else {
+					System.out.printf("%.2f, ", prob);
+				}
 			}
 			System.out.print('\n');
 		}
@@ -469,7 +477,7 @@ class IntersectedHmmAligner implements WordAligner {
 	void print(String prefix, double[] arr) {
 		System.out.print(prefix + '[');
 		for (double elem : arr) {
-			System.out.printf("%.2f, ", elem);
+			System.out.printf("%.4f, ", elem);
 		}
 		System.out.println(']');
 	}
