@@ -61,11 +61,17 @@ class IntersectedHmmAligner implements WordAligner {
 	HmmAligner reversedAligner;
 
 	IntersectedHmmAligner(Iterable<SentencePair> trainingData) {
-		processTrainingData(trainingData);
+//		processTrainingData(trainingData);
+//
+//		forwardAligner = new HmmAligner(false);
+//		reversedAligner = new HmmAligner(true);
+//		TEMP_ARRAY = null;
 
-		forwardAligner = new HmmAligner(false);
-		reversedAligner = new HmmAligner(true);
-		TEMP_ARRAY = null;
+		NonIntersectedModel1Aligner forwardModel1 = new NonIntersectedModel1Aligner(trainingData, false);
+		NonIntersectedModel1Aligner reverseModel1 = new NonIntersectedModel1Aligner(trainingData, true);
+
+		forwardAligner = new HmmAligner(forwardModel1, false);
+		reversedAligner = new HmmAligner(reverseModel1, true);
 	}
 
 	public Alignment alignSentencePair(SentencePair sentencePair) {
@@ -82,6 +88,7 @@ class IntersectedHmmAligner implements WordAligner {
 		}
 
 		return alignment;
+//		return forwardAligner.alignSentencePair(sentencePair);
 	}
 
 	private void processTrainingData(Iterable<SentencePair> trainingData) {
@@ -120,20 +127,15 @@ class IntersectedHmmAligner implements WordAligner {
 		Counter<Integer> probabilities;
 		double[] transitions;
 		final int TRANSITION_SIZE = MAX_TRANSITION * 2 + 1;
-		Indexer frenchIndexer, englishIndexer;
+		Indexer<String> frenchIndexer, englishIndexer;
 		double[] englishProbSums;
 		int iterationNumber = 0;
 		double uniform;
 
 		HmmAligner(boolean reverse) {
 			this.reverse = reverse;
-			if (!reverse) {
-				frenchIndexer = IntersectedHmmAligner.this.frenchIndexer;
-				englishIndexer = IntersectedHmmAligner.this.englishIndexer;
-			} else {
-				frenchIndexer = IntersectedHmmAligner.this.englishIndexer;
-				englishIndexer = IntersectedHmmAligner.this.frenchIndexer;
-			}
+			setIndexers();
+
 			englishProbSums = new double[englishIndexer.size()];
 			uniform = 1.0 / englishIndexer.size();
 
@@ -141,7 +143,7 @@ class IntersectedHmmAligner implements WordAligner {
 			transitions = getInitialTransitions();
 
 			while (iterationNumber < MAX_ITERATIONS) {
-				System.out.print("\riterationNumber = " + iterationNumber);
+				System.out.print("\riterationNumber = " + (iterationNumber + 1));
 
 				Counter<Integer> newProbabilities = new Counter<Integer>();
 				double[] newTransitions = new double[TRANSITION_SIZE];
@@ -246,6 +248,16 @@ class IntersectedHmmAligner implements WordAligner {
 //				print("transitions = ", transitions);
 			}
 			System.out.println("\nTraining complete!");
+		}
+
+		HmmAligner(NonIntersectedModel1Aligner model1Aligner, boolean reverse) {
+			iterationNumber = -1;
+			this.reverse = reverse;
+			frenchIndexer = model1Aligner.frenchIndexer;
+			englishIndexer = model1Aligner.englishIndexer;
+			probabilities = model1Aligner.probabilities;
+			print(probabilities);
+			transitions = getInitialTransitions();
 		}
 
 		public Alignment alignSentencePair(SentencePair sentencePair) {
@@ -406,12 +418,13 @@ class IntersectedHmmAligner implements WordAligner {
 
 		double[] getInitialTransitions() {
 			double[] transitions = new double[TRANSITION_SIZE];
-			Arrays.fill(transitions, 0.5);
+			Arrays.fill(transitions, 0.01);
 //			transitions[-2 + MAX_TRANSITION] += 1.0/15;
-			transitions[-1 + MAX_TRANSITION] += 1;
-			transitions[0 + MAX_TRANSITION] += 1;
-			transitions[1 + MAX_TRANSITION] += 1;
-//			transitions[2 + MAX_TRANSITION] += 5.0/15;
+			transitions[-1 + MAX_TRANSITION] += 0.1;
+			transitions[0 + MAX_TRANSITION] += 0.5;
+			transitions[1 + MAX_TRANSITION] += 2;
+			transitions[2 + MAX_TRANSITION] += 0.5;
+			transitions[3 + MAX_TRANSITION] += 0.1;
 			return transitions;
 		}
 
@@ -440,6 +453,37 @@ class IntersectedHmmAligner implements WordAligner {
 				}
 			}
 			return matrix;
+		}
+
+		void setIndexers() {
+			if (!reverse) {
+				frenchIndexer = IntersectedHmmAligner.this.frenchIndexer;
+				englishIndexer = IntersectedHmmAligner.this.englishIndexer;
+			} else {
+				frenchIndexer = IntersectedHmmAligner.this.englishIndexer;
+				englishIndexer = IntersectedHmmAligner.this.frenchIndexer;
+			}
+		}
+
+		void print(Counter<Integer> probabilities) {
+			System.out.println("probabilities = ");
+			for (int englishWord = 0; englishWord < englishIndexer.size(); englishWord++) {
+				String englishString = englishIndexer.get(englishWord);
+				System.out.print(englishString + " > ");
+				for (int frenchWord = 0; frenchWord < frenchIndexer.size(); frenchWord++) {
+					String frenchString = frenchIndexer.get(frenchWord);
+					int key = getKey(englishWord, frenchWord);
+					if (!probabilities.containsKey(key)) continue;
+					System.out.print(frenchString + ":");
+					double prob = probabilities.getCount(key);
+					if (prob == 0) {
+						System.out.print("0,   ");
+					} else {
+						System.out.printf("%.2f, ", prob);
+					}
+				}
+				System.out.print('\n');
+			}
 		}
 	}
 
@@ -477,27 +521,6 @@ class IntersectedHmmAligner implements WordAligner {
 			list.add((String)indexer.get(index));
 		}
 		return list;
-	}
-
-	void print(Counter<Integer> probabilities) {
-		System.out.println("probabilities = ");
-		for (int englishWord = 0; englishWord < englishIndexer.size(); englishWord++) {
-			String englishString = englishIndexer.get(englishWord);
-			System.out.print(englishString + " > ");
-			for (int frenchWord = 0; frenchWord < frenchIndexer.size(); frenchWord++) {
-				String frenchString = frenchIndexer.get(frenchWord);
-				int key = getKey(englishWord, frenchWord);
-				if (!probabilities.containsKey(key)) continue;
-				System.out.print(frenchString + ":");
-				double prob = probabilities.getCount(key);
-				if (prob == 0) {
-					System.out.print("0,   ");
-				} else {
-					System.out.printf("%.2f, ", prob);
-				}
-			}
-			System.out.print('\n');
-		}
 	}
 
 	void print(String prefix, double[] arr) {

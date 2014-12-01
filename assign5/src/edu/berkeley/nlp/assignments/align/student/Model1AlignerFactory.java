@@ -71,7 +71,7 @@ class Model1Aligner implements WordAligner {
 
 class NonIntersectedModel1Aligner implements WordAligner {
 
-	static int MAX_ITERATIONS = 100;
+	static int MAX_ITERATIONS = 50;
 
 	Indexer<String> englishIndexer = new Indexer<String>();
 	Indexer<String> frenchIndexer = new Indexer<String>();
