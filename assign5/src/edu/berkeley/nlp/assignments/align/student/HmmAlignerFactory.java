@@ -42,17 +42,17 @@ public class HmmAlignerFactory implements WordAlignerFactory
 class IntersectedHmmAligner implements WordAligner {
 
 	static int MAX_ITERATIONS = 10;
-	static double NULL_PROBABILITY = 0.2;
-	final double NULL_ALPHABETA_MULTIPLIER = 0.5;
+	static double NULL_PROBABILITY = 0.0;
+	final double NULL_ALPHABETA_MULTIPLIER = 0.0;
 	final int MAX_TRANSITION = 10;
 	static int MAX_FRENCH_LENGTH = 30;
 
 	double[] getInitialTransitions() {
 		double[] transitions = new double[TRANSITION_SIZE];
-		Arrays.fill(transitions, 0.01);
+		Arrays.fill(transitions, 0.2);
 		transitions[-1 + MAX_TRANSITION] += 0.1;
 		transitions[0 + MAX_TRANSITION] += 0.5;
-		transitions[1 + MAX_TRANSITION] += 2;
+		transitions[1 + MAX_TRANSITION] += 4;
 		transitions[2 + MAX_TRANSITION] += 0.5;
 		transitions[3 + MAX_TRANSITION] += 0.1;
 		return transitions;
@@ -63,6 +63,8 @@ class IntersectedHmmAligner implements WordAligner {
 	static int NULL_INDEX = 0;
 	static double[] TEMP_ARRAY = new double[MAX_ENGLISH_LENGTH];
 	static double A_SMALL_NUMBER = 0.000001;
+	int numAligned = 0;
+	int maxSize = 0;
 //	static double[] START_STATE_ALPHAS = {1.0};
 
 	Indexer<String> englishIndexer = new Indexer<String>();
@@ -80,6 +82,7 @@ class IntersectedHmmAligner implements WordAligner {
 //		TEMP_ARRAY = null;
 
 		NonIntersectedModel1Aligner forwardModel1 = new NonIntersectedModel1Aligner(trainingData, false);
+		System.out.println("");
 		NonIntersectedModel1Aligner reverseModel1 = new NonIntersectedModel1Aligner(trainingData, true);
 
 		forwardAligner = new HmmAligner(forwardModel1, false);
@@ -87,6 +90,12 @@ class IntersectedHmmAligner implements WordAligner {
 	}
 
 	public Alignment alignSentencePair(SentencePair sentencePair) {
+		if (sentencePair.getFrenchWords().size() > maxSize) {
+			maxSize = sentencePair.getFrenchWords().size();
+		}
+		numAligned++;
+		System.out.print("\rmax: " + maxSize + ", aligned " + numAligned);
+
 		Alignment alignment = new Alignment();
 		Alignment forwardAlignment =  forwardAligner.alignSentencePair(sentencePair);
 		Alignment reverseAlignment = reversedAligner

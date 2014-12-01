@@ -1,6 +1,6 @@
 
 TYPE=HMM
-TRAIN=10000
+TRAIN=100000
 
 FLAGS=-cp assign_align.jar:assign_align-submit.jar -server edu.berkeley.nlp.assignments.align.AlignmentTester -path align_data
 
@@ -19,7 +19,7 @@ minitest: assign_align-submit.jar
 	java -ea -mx500m $(FLAGS) -alignerType $(TYPE) -data miniTest -printAlignments -justAlign -maxTrain 0
 
 full_local: assign_align-submit.jar
-	java -ea -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain $(TRAIN) -data test -noprint
+	java -ea -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain $(TRAIN) -data test -justAlign
 
 real_local: assign_align-submit.jar
 	java -Xmx8g $(FLAGS) -alignerType $(TYPE) -maxTrain 10000 -data test -noprint

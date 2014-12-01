@@ -53,6 +53,14 @@ to 5m5s to train both models in both directions.
 
 \section{HMM Aligner}
 
-
+Precision: 0.9338727678571429
+Recall: 0.7147102526002972
+AER: 0.1822356336919444
+		Arrays.fill(transitions, 0.2);
+		transitions[-1 + MAX_TRANSITION] += 0.1;
+		transitions[0 + MAX_TRANSITION] += 0.5;
+		transitions[1 + MAX_TRANSITION] += 4;
+		transitions[2 + MAX_TRANSITION] += 0.5;
+		transitions[3 + MAX_TRANSITION] += 0.1;
 
 \end{document}
