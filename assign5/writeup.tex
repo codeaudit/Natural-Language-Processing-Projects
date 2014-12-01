@@ -62,6 +62,7 @@ are initialized to a guess of transitions, with most of the weights on a jump di
 For learning weights, probabilities and partial alignments are normalized per french word,
 giving sentences weight proportional to their length.
 
+\subsection{Handling Nulls}
 At first I used a single null with a hardcoded probability of jumping to and from null of 0.2,
 but this did allowed paths in the HMM to jump large distances through null without penalty,
 so a null was used for each position, with a fixed probability of jumping to the null of 
@@ -70,31 +71,82 @@ badly, with AER of around 45\%. Error analysis showed that words at the beginnin
 had high null alpha values because they have paid fewer null penalties, 
 giving them higher alignments to null and causing errors. Adding null penalty to alphas of
 the initial state, tuning null probability, and penalizing null alignments 
-all didn't fix the errors. 
+all didn't fix the errors. Unfortunately, the final solution I chose was to train a
+model 1 aligner, then borrow its probabilities for null and fix the null probability in the
+HMM to 0 during training. 
 
+Since my HMM was intersected, it had very high precision, but somewhat lower recall.
+As a fix, during prediction, the alpha-beta values for nulls are summed and then discounted
+by a factor of 0.3 to reduce the number of nulls, as intersection introduces a fair number
+of nulls already, so the HMM should err on the side of outputting alignments instead of nulls.
 
+\subsection{Working with Underflow}
 The HMM ran into underflow problems during training with longer sentences, since each
 timestep alpha values would get smaller and eventually exceed that representable by a double.
 To deal with this, I took the simple approach of not using long sentences for training.
 This was fine as there were more than enough short sentences that I could not use them all
 anyway, and there was not a need to learn transitions for very large jumps since they
 are small enough to be approximated by the last buckets on the transitions. Additionally,
-the portions trained by model 1 do use all training sentences.
+the model 1 training does use all sentences.
 
-Precision: 0.9338727678571429
-Recall: 0.7147102526002972
-AER: 0.1822356336919444
-		Arrays.fill(transitions, 0.2);
-		transitions[-1 + MAX_TRANSITION] += 0.1;
-		transitions[0 + MAX_TRANSITION] += 0.5;
-		transitions[1 + MAX_TRANSITION] += 4;
-		transitions[2 + MAX_TRANSITION] += 0.5;
-		transitions[3 + MAX_TRANSITION] += 0.1;
+\subsection{Results}
+All this worked fairly well, and achieves an AER of 18.17\%, 
+recall of 0.71, and precision of 0.93, which is significantly better than model 1 alone. 
+However, not learning transitions and emissions of null values did harm its AER compared
+to the reference implementation. Doubling the number of iterations saw a small increase
+of 0.05\% in AER, but also doubles training time so was reverted. BLEU scores weren't able
+to be accurately calculated, as the testing harness would not let the aligner skip
+long sentences to build the phrase table so their alignments were inaccurate due to underflow.
+Using a training size of 100,000 instead and cutting iteration count by half, AER
+drops significantly to 12.49, and training takes just under 14 minutes.
 
-13m47s 100,000
-Precision: 0.9416666666666667
-Recall: 0.8058444774640912
-AER: 0.12490895848506922
+\subsection{Performance Optimizations}
+
+Most of the memory use was from the counter for $P(f|e)$, especially since two copies had to
+be kept at any time for the previous and current iterations. Two optimizations were made here.
+First, due to the internal implementations, sometimes the counter would store a key despite
+the value being zero, so a check was added to remove these keys. Second, since the number
+of french types and english types both fit inside 16 bits, a packed int was used as the key
+into this counter. These changes brought memory use down to around 800M, varying based on
+the amount of training data.
+
+For normalization, a sum has to be computed before each value can be divided by it.
+To eliminate the addition pass to compute the sum, a data structure was used to track the
+sum of all elements inside as it updates, instead of computing at the end. This was applied 
+to transition updates, transition matrices, as well as $P(f|e)$ updates.
+
+When computing alpha-betas, each French will need to compute alpha-betas for each English
+position. But since alpha-betas are discarded after each French for emission calculations, 
+The alpha-beta vector array was re-used without zero-ing or reallocation, saving some
+additional compute time.
+
+I considered pruning transitions greater than a certain jump distance, but it turns out
+large jump distances do exist in the data and such an optimization would lower AER. While
+an even larger number would have been safe, these long sentences were not used for training.
+
+\section{Final Results}
+
+
+% Precision: 0.9338727678571429
+% Recall: 0.7147102526002972
+% AER: 0.1822356336919444
+% 		Arrays.fill(transitions, 0.2);
+% 		transitions[-1 + MAX_TRANSITION] += 0.1;
+% 		transitions[0 + MAX_TRANSITION] += 0.5;
+% 		transitions[1 + MAX_TRANSITION] += 4;
+% 		transitions[2 + MAX_TRANSITION] += 0.5;
+% 		transitions[3 + MAX_TRANSITION] += 0.1;
+
+% 13m47s 100,000
+% Precision: 0.9416666666666667
+% Recall: 0.8058444774640912
+% AER: 0.12490895848506922
+
+% [2m33s]
+% max: 30, aligned 447Precision: 0.9333890746934225
+% Recall: 0.715948489351164
+% AER: 0.1817466561762392
+
 
 
 \end{document}
