@@ -199,7 +199,6 @@ class IntersectedHmmAligner implements WordAligner {
 					double totalProb, lastTotal = -1;
 					for (int frenchIndex = 0; frenchIndex < frenchLength; frenchIndex++) {
 						double[] alphaBetas = TEMP_ARRAY;
-						assert alphaBetas != null;
 						totalProb = 0;
 						double nullProb = 0;
 						for (int englishIndex = 0; englishIndex < englishLength; englishIndex++) {
