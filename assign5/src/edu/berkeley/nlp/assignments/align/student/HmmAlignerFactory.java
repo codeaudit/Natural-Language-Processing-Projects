@@ -42,11 +42,23 @@ public class HmmAlignerFactory implements WordAlignerFactory
 class IntersectedHmmAligner implements WordAligner {
 
 	static int MAX_ITERATIONS = 10;
-	static double NULL_PROBABILITY = 0.0;
-	final double NULL_ALPHABETA_MULTIPLIER = 0.1;
+	static double NULL_PROBABILITY = 0.2;
+	final double NULL_ALPHABETA_MULTIPLIER = 0.5;
 	final int MAX_TRANSITION = 10;
 	static int MAX_FRENCH_LENGTH = 30;
 
+	double[] getInitialTransitions() {
+		double[] transitions = new double[TRANSITION_SIZE];
+		Arrays.fill(transitions, 0.01);
+		transitions[-1 + MAX_TRANSITION] += 0.1;
+		transitions[0 + MAX_TRANSITION] += 0.5;
+		transitions[1 + MAX_TRANSITION] += 2;
+		transitions[2 + MAX_TRANSITION] += 0.5;
+		transitions[3 + MAX_TRANSITION] += 0.1;
+		return transitions;
+	}
+
+	final int TRANSITION_SIZE = MAX_TRANSITION * 2 + 1;
 	static int MAX_ENGLISH_LENGTH = 256;
 	static int NULL_INDEX = 0;
 	static double[] TEMP_ARRAY = new double[MAX_ENGLISH_LENGTH];
@@ -126,7 +138,6 @@ class IntersectedHmmAligner implements WordAligner {
 		boolean reverse;
 		Counter<Integer> probabilities;
 		double[] transitions;
-		final int TRANSITION_SIZE = MAX_TRANSITION * 2 + 1;
 		Indexer<String> frenchIndexer, englishIndexer;
 		double[] englishProbSums;
 		int iterationNumber = 0;
@@ -256,7 +267,7 @@ class IntersectedHmmAligner implements WordAligner {
 			frenchIndexer = model1Aligner.frenchIndexer;
 			englishIndexer = model1Aligner.englishIndexer;
 			probabilities = model1Aligner.probabilities;
-			print(probabilities);
+//			print(probabilities);
 			transitions = getInitialTransitions();
 		}
 
@@ -414,18 +425,6 @@ class IntersectedHmmAligner implements WordAligner {
 				double newCount = count / probSum;
 				probabilities.setCount(key, newCount);
 			}
-		}
-
-		double[] getInitialTransitions() {
-			double[] transitions = new double[TRANSITION_SIZE];
-			Arrays.fill(transitions, 0.01);
-//			transitions[-2 + MAX_TRANSITION] += 1.0/15;
-			transitions[-1 + MAX_TRANSITION] += 0.1;
-			transitions[0 + MAX_TRANSITION] += 0.5;
-			transitions[1 + MAX_TRANSITION] += 2;
-			transitions[2 + MAX_TRANSITION] += 0.5;
-			transitions[3 + MAX_TRANSITION] += 0.1;
-			return transitions;
 		}
 
 		// double[from][to]
