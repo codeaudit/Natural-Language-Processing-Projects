@@ -43,7 +43,7 @@ class IntersectedHmmAligner implements WordAligner {
 
 	static int MAX_ITERATIONS = 10;
 	static double NULL_PROBABILITY = 0.1;
-	final double NULL_ALPHABETA_MULTIPLIER = 1;
+	final double NULL_ALPHABETA_MULTIPLIER = 0.1;
 	final int MAX_TRANSITION = 10;
 	static int MAX_FRENCH_LENGTH = 30;
 
