@@ -94,7 +94,7 @@ class IntersectedHmmAligner implements WordAligner {
 			maxSize = sentencePair.getFrenchWords().size();
 		}
 		numAligned++;
-		System.out.print("\rmax: " + maxSize + ", aligned " + numAligned);
+//		System.out.print("\rmax: " + maxSize + ", aligned " + numAligned);
 
 		Alignment alignment = new Alignment();
 		Alignment forwardAlignment =  forwardAligner.alignSentencePair(sentencePair);

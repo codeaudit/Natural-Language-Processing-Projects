@@ -18,7 +18,9 @@
 \maketitle
 
 \section{Introduction}
-
+Here are three different approaches to statistical word alignment, where for each French word,
+I output a corresponding English word that it most likely comes from. The EM algorithm is used
+to learn the various probabilities, and results are measured with AER and BLEU.
 
 \section{Heuristic Aligner}
 
@@ -90,13 +92,12 @@ are small enough to be approximated by the last buckets on the transitions. Addi
 the model 1 training does use all sentences.
 
 \subsection{Results}
-All this worked fairly well, and achieves an AER of 18.17\%, 
-recall of 0.71, and precision of 0.93, which is significantly better than model 1 alone. 
+All this worked fairly well, and after many experiments over the parameters,
+on training size 10,000 the aligner achieves an AER of 18.17\%, 
+recall of 0.71, and precision of 0.93, which is significantly better than model 1. 
 However, not learning transitions and emissions of null values did harm its AER compared
 to the reference implementation. Doubling the number of iterations saw a small increase
-of 0.05\% in AER, but also doubles training time so was reverted. BLEU scores weren't able
-to be accurately calculated, as the testing harness would not let the aligner skip
-long sentences to build the phrase table so their alignments were inaccurate due to underflow.
+of 0.05\% in AER, but also doubles training time so was reverted. BLEU was 16.825.
 Using a training size of 100,000 instead and cutting iteration count by half, AER
 drops significantly to 12.49, and training takes just under 14 minutes.
 
@@ -107,8 +108,7 @@ be kept at any time for the previous and current iterations. Two optimizations w
 First, due to the internal implementations, sometimes the counter would store a key despite
 the value being zero, so a check was added to remove these keys. Second, since the number
 of french types and english types both fit inside 16 bits, a packed int was used as the key
-into this counter. These changes brought memory use down to around 800M, varying based on
-the amount of training data.
+into this counter.
 
 For normalization, a sum has to be computed before each value can be divided by it.
 To eliminate the addition pass to compute the sum, a data structure was used to track the
@@ -125,28 +125,17 @@ large jump distances do exist in the data and such an optimization would lower A
 an even larger number would have been safe, these long sentences were not used for training.
 
 \section{Final Results}
+HMM on size 10,000 training set:
 
+Precision: 0.934
 
-% Precision: 0.9338727678571429
-% Recall: 0.7147102526002972
-% AER: 0.1822356336919444
-% 		Arrays.fill(transitions, 0.2);
-% 		transitions[-1 + MAX_TRANSITION] += 0.1;
-% 		transitions[0 + MAX_TRANSITION] += 0.5;
-% 		transitions[1 + MAX_TRANSITION] += 4;
-% 		transitions[2 + MAX_TRANSITION] += 0.5;
-% 		transitions[3 + MAX_TRANSITION] += 0.1;
+Recall: 0.715
 
-% 13m47s 100,000
-% Precision: 0.9416666666666667
-% Recall: 0.8058444774640912
-% AER: 0.12490895848506922
+AER: 18.2\%
 
-% [2m33s]
-% max: 30, aligned 447Precision: 0.9333890746934225
-% Recall: 0.715948489351164
-% AER: 0.1817466561762392
+BLEU: 16.825
 
+Training time: 76 seconds
 
 
 \end{document}
